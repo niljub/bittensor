@@ -123,18 +123,18 @@ class RootList:
         This command is useful for users interested in understanding the composition and governance structure of the Bittensor network's root layer. It provides insights into which neurons hold significant influence and responsibility within the network.
     """
 
-    @staticmethod
-    def run(cli: "bittensor.cli"):
-        r"""List the root network"""
-        try:
-            subtensor: "bittensor.subtensor" = bittensor.subtensor(
-                config=cli.config, log_verbose=False
-            )
-            RootList._run(cli, subtensor)
-        finally:
-            if "subtensor" in locals():
-                subtensor.close()
-                bittensor.logging.debug("closing subtensor connection")
+   # @staticmethod
+   # def run(cli: "bittensor.cli"):
+   #     r"""List the root network"""
+   #     try:
+   ##         subtensor: "bittensor.subtensor" = bittensor.subtensor(
+   #             config=cli.config, log_verbose=False
+   #         )
+   #         RootList._run(cli, subtensor)
+   #     finally:
+   #         if "subtensor" in locals():
+   #             subtensor.close()
+   #             bittensor.logging.debug("closing subtensor connection")
 
     @staticmethod
     def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):

@@ -2,7 +2,7 @@ import argparse
 from rich.table import Table
 from rich.prompt import Prompt
 from sys import getsizeof
-
+from typing import *
 import bittensor
 
 
@@ -142,47 +142,44 @@ class SetIdentityCommand:
         console.print(table)
 
     @staticmethod
+    def prompt_for_config(
+            config: "bittensor.config",
+            key: str,
+            message: str,
+            default: Any = None,
+            choices: List[Any] = None
+    ):
+        if not config.is_set(key) and not config.no_prompt:
+            prompt_args = {"text": message}
+            if default is not None:
+                prompt_args["default"] = default
+            if choices is not None:
+                prompt_args["choices"] = choices
+            value = Prompt.ask(**prompt_args)
+            if key == "subtensor.network":
+                value, config.subtensor.chain_endpoint = bittensor.subtensor.determine_chain_endpoint_and_network(value)
+            setattr_deep(config, key, value)
+
+    @staticmethod
     def check_config(config: "bittensor.config"):
-        if not config.is_set("wallet.name") and not config.no_prompt:
-            config.wallet.name = Prompt.ask(
-                "Enter wallet name", default=bittensor.defaults.wallet.name
-            )
-        if not config.is_set("wallet.hotkey") and not config.no_prompt:
-            config.wallet.hotkey = Prompt.ask(
-                "Enter wallet hotkey", default=bittensor.defaults.wallet.hotkey
-            )
-        if not config.is_set("subtensor.network") and not config.no_prompt:
-            config.subtensor.network = Prompt.ask(
-                "Enter subtensor network",
-                default=bittensor.defaults.subtensor.network,
-                choices=bittensor.__networks__,
-            )
-            (
-                _,
-                config.subtensor.chain_endpoint,
-            ) = bittensor.subtensor.determine_chain_endpoint_and_network(
-                config.subtensor.network
-            )
-        if not config.is_set("display") and not config.no_prompt:
-            config.display = Prompt.ask("Enter display name", default="")
-        if not config.is_set("legal") and not config.no_prompt:
-            config.legal = Prompt.ask("Enter legal string", default="")
-        if not config.is_set("web") and not config.no_prompt:
-            config.web = Prompt.ask("Enter web url", default="")
-        if not config.is_set("pgp_fingerprint") and not config.no_prompt:
-            config.pgp_fingerprint = Prompt.ask(
-                "Enter pgp fingerprint (must be 20 bytes)", default=None
-            )
-        if not config.is_set("riot") and not config.no_prompt:
-            config.riot = Prompt.ask("Enter riot", default="")
-        if not config.is_set("email") and not config.no_prompt:
-            config.email = Prompt.ask("Enter email address", default="")
-        if not config.is_set("image") and not config.no_prompt:
-            config.image = Prompt.ask("Enter image url", default="")
-        if not config.is_set("twitter") and not config.no_prompt:
-            config.twitter = Prompt.ask("Enter twitter url", default="")
-        if not config.is_set("info") and not config.no_prompt:
-            config.info = Prompt.ask("Enter info", default="")
+        prompts = [
+            ("wallet.name", "Enter wallet name", bittensor.defaults.wallet.name),
+            ("wallet.hotkey", "Enter wallet hotkey", bittensor.defaults.wallet.hotkey),
+            ("subtensor.network", "Enter subtensor network", bittensor.defaults.subtensor.network,
+             bittensor.__networks__),
+            ("display", "Enter display name", ""),
+            ("legal", "Enter legal string", ""),
+            ("web", "Enter web url", ""),
+            ("pgp_fingerprint", "Enter pgp fingerprint (must be 20 bytes)", None),
+            ("riot", "Enter riot", ""),
+            ("email", "Enter email address", ""),
+            ("image", "Enter image url", ""),
+            ("twitter", "Enter twitter url", ""),
+            ("info", "Enter info", ""),
+        ]
+
+        for key, message, default, *choices in prompts:
+            prompt_for_config(config, key, message, default, choices[0] if choices else None)
 
     @staticmethod
     def add_args(parser: argparse.ArgumentParser):

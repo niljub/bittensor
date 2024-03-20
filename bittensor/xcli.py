@@ -20,10 +20,13 @@ import shtab
 import argparse
 import bittensor
 from typing import List, Optional
-from .commands import *
+from rich import Console
+from bittensor.command.registry import CommandRegistry
+from bittensor.command.parser import CommandParser
+
 
 # Create a console instance for CLI display.
-console = bittensor.__console__
+console = Console()
 
 ALIAS_TO_COMMAND = {
     "subnets": "subnets",
@@ -52,13 +55,13 @@ COMMANDS = {
         "aliases": ["s", "subnet"],
         "help": "Commands for managing and viewing subnetworks.",
         "commands": {
-            "list": SubnetListCommand,
-            "metagraph": MetagraphCommand,
-            "lock_cost": SubnetLockCostCommand,
-            "create": RegisterSubnetworkCommand,
-            "pow_register": PowRegisterCommand,
-            "register": RegisterCommand,
-            "hyperparameters": SubnetHyperparamsCommand,
+            "list": "SubnetListCommand",
+            "metagraph": "MetagraphCommand",
+            "lock_cost": "SubnetLockCostCommand",
+            "create": "RegisterSubnetworkCommand",
+            "pow_register": "PowRegisterCommand",
+            "register": "RegisterCommand",
+            "hyperparameters": "SubnetHyperparamsCommand",
         },
     },
     "root": {
@@ -66,20 +69,20 @@ COMMANDS = {
         "aliases": ["r", "roots"],
         "help": "Commands for managing and viewing the root network.",
         "commands": {
-            "list": RootList,
-            "weights": RootSetWeightsCommand,
-            "get_weights": RootGetWeightsCommand,
-            "boost": RootSetBoostCommand,
-            "slash": RootSetSlashCommand,
-            "senate_vote": VoteCommand,
-            "senate": SenateCommand,
-            "register": RootRegisterCommand,
-            "proposals": ProposalsCommand,
-            "delegate": DelegateStakeCommand,
-            "undelegate": DelegateUnstakeCommand,
-            "my_delegates": MyDelegatesCommand,
-            "list_delegates": ListDelegatesCommand,
-            "nominate": NominateCommand,
+            "list": "RootList",
+            "weights": "RootSetWeightsCommand",
+            "get_weights": "RootGetWeightsCommand",
+            "boost": "RootSetBoostCommand",
+            "slash": "RootSetSlashCommand",
+            "senate_vote": "VoteCommand",
+            "senate": "SenateCommand",
+            "register": "RootRegisterCommand",
+            "proposals": "ProposalsCommand",
+            "delegate": "DelegateStakeCommand",
+            "undelegate": "DelegateUnstakeCommand",
+            "my_delegates": "MyDelegatesCommand",
+            "list_delegates": "ListDelegatesCommand",
+            "nominate": "NominateCommand",
         },
     },
     "wallet": {
@@ -87,23 +90,23 @@ COMMANDS = {
         "aliases": ["w", "wallets"],
         "help": "Commands for managing and viewing wallets.",
         "commands": {
-            "list": ListCommand,
-            "overview": OverviewCommand,
-            "transfer": TransferCommand,
-            "inspect": InspectCommand,
-            "balance": WalletBalanceCommand,
-            "create": WalletCreateCommand,
-            "new_hotkey": NewHotkeyCommand,
-            "new_coldkey": NewColdkeyCommand,
-            "regen_coldkey": RegenColdkeyCommand,
-            "regen_coldkeypub": RegenColdkeypubCommand,
-            "regen_hotkey": RegenHotkeyCommand,
-            "faucet": RunFaucetCommand,
-            "update": UpdateWalletCommand,
-            "swap_hotkey": SwapHotkeyCommand,
-            "set_identity": SetIdentityCommand,
-            "get_identity": GetIdentityCommand,
-            "history": GetWalletHistoryCommand,
+            "list": "ListCommand",
+            "overview": "OverviewCommand",
+            "transfer": "TransferCommand",
+            "inspect": "InspectCommand",
+            "balance": "WalletBalanceCommand",
+            "create": "WalletCreateCommand",
+            "new_hotkey": "NewHotkeyCommand",
+            "new_coldkey": "NewColdkeyCommand",
+            "regen_coldkey": "RegenColdkeyCommand",
+            "regen_coldkeypub": "RegenColdkeypubCommand",
+            "regen_hotkey": "RegenHotkeyCommand",
+            "faucet": "RunFaucetCommand",
+            "update": "UpdateWalletCommand",
+            "swap_hotkey": "SwapHotkeyCommand",
+            "set_identity": "SetIdentityCommand",
+            "get_identity": "GetIdentityCommand",
+            "history": "GetWalletHistoryCommand",
         },
     },
     "stake": {
@@ -111,9 +114,9 @@ COMMANDS = {
         "aliases": ["st", "stakes"],
         "help": "Commands for staking and removing stake from hotkey accounts.",
         "commands": {
-            "show": StakeShow,
-            "add": StakeCommand,
-            "remove": UnStakeCommand,
+            "show": "StakeShow",
+            "add": "StakeCommand",
+            "remove": "UnStakeCommand",
         },
     },
     "sudo": {
@@ -121,9 +124,9 @@ COMMANDS = {
         "aliases": ["su", "sudos"],
         "help": "Commands for subnet management",
         "commands": {
-            # "dissolve": None,
-            "set": SubnetSudoCommand,
-            "get": SubnetGetHyperparamsCommand,
+            # "dissolve": "None",
+            "set": "SubnetSudoCommand",
+            "get": "SubnetGetHyperparamsCommand",
         },
     },
     "legacy": {
@@ -131,16 +134,16 @@ COMMANDS = {
         "aliases": ["l"],
         "help": "Miscellaneous commands.",
         "commands": {
-            "update": UpdateCommand,
-            "faucet": RunFaucetCommand,
+            "update": "UpdateCommand",
+            "faucet": "RunFaucetCommand",
         },
     },
     "info": {
         "name": "info",
         "aliases": ["i"],
-        "help": "Instructions for enabling autocompletion for the CLI.",
+        "help": "Instructions for enabling autocompletion for the BitCLI",
         "commands": {
-            "autocomplete": AutocompleteCommand,
+            "autocomplete": "AutocompleteCommand",
         },
     },
 }
@@ -160,7 +163,7 @@ class CLIErrorParser(argparse.ArgumentParser):
         sys.exit(2)
 
 
-class cli:
+class BitCLI:
     """
     Implementation of the Command Line Interface (CLI) class for the Bittensor protocol.
     This class handles operations like key management (hotkey and coldkey) and token transfer.
@@ -168,22 +171,26 @@ class cli:
 
     def __init__(
         self,
-        config: Optional["bittensor.config"] = None,
         args: Optional[List[str]] = None,
+        registry=CommandRegistry,
+        parser=CommandParser,
     ):
         """
         Initializes a bittensor.CLI object.
 
         Args:
-            config (bittensor.config, optional): The configuration settings for the CLI.
+            config (bittensor.config, optional): The configuration settings for the BitCLI
             args (List[str], optional): List of command line arguments.
         """
-        # Turns on console for cli.
+        self.registry = registry(COMMANDS, plugin_path="plugins/")
+        self.parser = parser(default_config=COMMANDS, registry=registry)
+
+        # Turns on console for BitCLI
         bittensor.turn_console_on()
 
         # If no config is provided, create a new one from args.
         if config is None:
-            config = cli.create_config(args)
+            config = BitCLI.create_config(args)
 
         self.config = config
         if self.config.command in ALIAS_TO_COMMAND:
@@ -195,7 +202,7 @@ class cli:
             sys.exit()
 
         # Check if the config is valid.
-        cli.check_config(self.config)
+        BitCLI.check_config(self.config)
 
         # If no_version_checking is not set or set as False in the config, version checking is done.
         if not self.config.get("no_version_checking", d=True):
@@ -204,7 +211,7 @@ class cli:
             except:
                 # If version checking fails, inform user with an exception.
                 raise RuntimeError(
-                    "To avoid internet-based version checking, pass --no_version_checking while running the CLI."
+                    "To avoid internet-based version checking, pass --no_version_checking while running the BitCLI"
                 )
 
     @staticmethod
@@ -259,7 +266,7 @@ class cli:
         Returns:
             bittensor.config: The configuration object for Bittensor CLI.
         """
-        parser = cli.__create_parser__()
+        parser = BitCLI.__create_parser__()
 
         # If no arguments are passed, print help text and exit the program.
         if len(args) == 0:
@@ -274,7 +281,7 @@ class cli:
         Checks if the essential configuration exists under different command
 
         Args:
-            config (bittensor.config): The configuration settings for the CLI.
+            config (bittensor.config): The configuration settings for the BitCLI
         """
         # Check if command exists, if so, run the corresponding check_config.
         # If command doesn't exist, inform user and exit the program.
@@ -283,7 +290,7 @@ class cli:
             command_data = COMMANDS[command]
 
             if isinstance(command_data, dict):
-                if config["subcommand"] != None:
+                if config["subcommand"] is not None:
                     command_data["commands"][config["subcommand"]].check_config(config)
                 else:
                     console.print(
