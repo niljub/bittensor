@@ -44,11 +44,11 @@ Place the new plugin and its configuration file in the appropriate directory (`c
 
 ## Example Plugins
 
-### CLIPlugin Example: TableDisplayPlugin
+### CLIPlugin Example: ExampleSubnetsPlugin
 
 This plugin displays data in a tabular format on the command line. It reads input data and configuration settings (like column names and widths) from its configuration file.
 
-### TransportPlugin Example: HTTPTransportPlugin
+### TransportPlugin Example: ExampleHTTPPlugin
 
 Provides HTTP-based data transport functionalities. It implements methods to send and receive data over HTTP, supporting both synchronous and asynchronous operations.
 

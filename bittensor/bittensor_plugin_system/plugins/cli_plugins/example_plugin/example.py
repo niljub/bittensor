@@ -2,7 +2,6 @@ from bittensor.bittensor_plugin_system.core.base_plugin import BasePlugin
 import logging
 
 
-
 class ExamplePlugin(BasePlugin):
     """
     An example plugin that extends the BasePlugin abstract class,

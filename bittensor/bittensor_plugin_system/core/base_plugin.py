@@ -23,7 +23,7 @@ class BasePlugin(ABC):
         Args:
             config_path (str): The path to the configuration YAML file.
         """
-        with open(config_path, 'r') as file:
+        with open(config_path, "r") as file:
             self.config = yaml.safe_load(file)
         self.logger.info("Plugin initialized with configuration from %s", config_path)
 
