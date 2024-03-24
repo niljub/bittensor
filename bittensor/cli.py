@@ -1,5 +1,6 @@
 # CLI Entrypoint
 # cli.py
+import asyncio
 
 import typer
 from injector import Injector
@@ -9,6 +10,14 @@ from bittensor.bittensor_cli_system.cli_util import Display
 
 
 app = typer.Typer()
+
+
+def load_legacy_cli_system():
+    """
+    Dynamically imports and returns the main function of the legacy CLI system.
+    """
+    from bittensor.bittensor_cli_system.cli_legacy import cli
+    return cli
 
 
 def main(interactive: bool = typer.Option(False, "--interactive", "-i", help="Enter interactive CLI REPL mode")):
@@ -21,7 +30,7 @@ def main(interactive: bool = typer.Option(False, "--interactive", "-i", help="En
     injector = Injector([DIModule()])
     if interactive:
         repl = injector.get(CLIRepl)
-        repl.start()
+        asyncio.run(repl.start())
     else:
         display = injector.get(Display)
         display.display("Non-interactive mode not yet implemented.")
