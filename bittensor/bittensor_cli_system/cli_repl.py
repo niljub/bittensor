@@ -36,7 +36,7 @@ class CLIRepl:
         )
         self.update_user_status("")
 
-    def update_main_status(self, status: str):
+    async def update_main_status(self, status: str):
         """
         Updates the main status bar at the top of the screen.
 
@@ -47,7 +47,7 @@ class CLIRepl:
             Panel(f"[bold magenta]BITTENSOR[/bold magenta] - {status}", style="on blue")
         )
 
-    def update_display(self, content: str):
+    async def update_display(self, content: str):
         """
         Updates the display panel with the provided content.
 
@@ -56,7 +56,7 @@ class CLIRepl:
         """
         self.layout["display"].update(Panel(content, border_style="green"))
 
-    def update_user_status(self, status: str):
+    async def update_user_status(self, status: str):
         """
         Updates the user status bar with the provided status message.
 
@@ -69,7 +69,7 @@ class CLIRepl:
             Panel(f"{clock} | {mode_display} | {status}", style="on blue")
         )
 
-    def start(self):
+    async def start(self):
         """
         Starts the REPL, continuously accepting input commands from the user.
         """
@@ -77,9 +77,9 @@ class CLIRepl:
             self.console.print(self.layout)
             while True:
                 user_input = self.console.input("[bold green]Bittensor > [/bold green]")
-                self.process_command(user_input)
+                await self.process_command(user_input)
 
-    def process_command(self, command: str):
+    async def process_command(self, command: str):
         """
         Processes the entered command and updates the REPL accordingly.
 
@@ -91,6 +91,6 @@ class CLIRepl:
             self.console.print("Exiting Bittensor CLI...", style="bold red")
             sys.exit(0)
         elif command == "help":
-            self.update_display("Help: List of commands...")
+            await self.update_display("Help: List of commands...")
         else:
-            self.update_display(f"Command '{command}' not recognized.")
+            await self.update_display(f"Command '{command}' not recognized.")
