@@ -10,7 +10,12 @@ To maintain a consistent and organized architecture within the Bittensor Plugin 
 ## Main Plugin File Naming
 
 - **Uniform Name**: The main file within each plugin directory should have a uniform name across all plugins to simplify the identification of the plugin's entry point.
-  - **Example**: For a plugin directory named `subnet_cli_plugin`, the main file should be named `plugin.py`.
+  - **Example**: For a plugin directory named `subnet_cli_plugin`, the main file should be named `subnet_cli_plugin.py`.
+
+## Configuration Defaults File Naming
+
+- **Uniform Name**: The defaults config file within each plugin directory should have a uniform name across all plugins to simplify the identification of the plugin's defaults.
+  - **Example**: For a plugin directory named `subnet_cli_plugin`, the defauls file should be named `defaults.yml`.
 
 ## Plugin Class Naming
 

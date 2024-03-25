@@ -44,7 +44,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from typing import List, Optional, Tuple, Callable, Any, Dict
 
 from injector import inject, singleton
-from bittensor.bittensor_plugin_system.system_plugins.cli.axon_plugin.config import AxonPluginConfig
+from bittensor.bittensor_plugin_system.system_plugins.cli.axon_cli_plugin.config import AxonPluginConfig
 
 from bittensor.errors import (
     InvalidRequestNameError,
