@@ -21,6 +21,9 @@ import argparse
 import bittensor
 from typing import List, Optional
 from bittensor.commands import *
+import websocket
+from bittensor import logging as bt_logging
+
 
 # Create a console instance for CLI display.
 console = bittensor.__console__
@@ -321,3 +324,25 @@ class cli:
                 f":cross_mark:[red]Unknown command: {self.config.command}[/red]"
             )
             sys.exit()
+
+
+
+def main():
+    # Create the parser with shtab support
+    parser = cli.__create_parser__()
+    args, unknown = parser.parse_known_args()
+
+    if args.print_completion:  # Check for print-completion argument
+        print(shtab.complete(parser, args.print_completion))
+        return
+
+    try:
+        cli_instance = cli(args=sys.argv[1:])
+        cli_instance.run()
+    except KeyboardInterrupt:
+        print('KeyboardInterrupt')
+    except RuntimeError as e:
+        bt_logging.error(f'RuntimeError: {e}')
+    except websocket.WebSocketConnectionClosedException as e:
+        bt_logging.error(f'Subtensor related error. WebSocketConnectionClosedException: {e}')
+

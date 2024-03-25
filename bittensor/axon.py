@@ -44,7 +44,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from typing import List, Optional, Tuple, Callable, Any, Dict
 
 from injector import inject, singleton
-from bittensor.bittensor_plugin_system.system_plugins.cli.axon_cli_plugin.config import AxonPluginConfig
+from bittensor.bittensor_cli_system.di_config import DIModule
+from bittensor.system_plugins.axon_cli_plugin.config import AxonPluginConfig
 
 from bittensor.errors import (
     InvalidRequestNameError,
@@ -293,12 +294,15 @@ class Axon:
     #
     # Methods for backwards compatibility
     #
+    @inject
     def config(self, axon_config: AxonPluginConfig):
         return AxonPluginConfig.config()
 
+    @inject
     def add_args(self, *args, **kwargs):
         return AxonPluginConfig.add_args(*args, **kwargs)
 
+    @inject
     def help(self):
         return AxonPluginConfig.help()
     # End compat methods

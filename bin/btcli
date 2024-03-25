@@ -1,35 +1,13 @@
 #!/usr/bin/env python
+import typer
+from bittensor.cli import main
 
-import websocket
-
-import sys
-import shtab
-from bittensor import cli as btcli
-from bittensor import logging as bt_logging
+app = typer.Typer()
 
 
-def main():
-    # Create the parser with shtab support
-    parser = btcli.__create_parser__()
-    args, unknown = parser.parse_known_args()
+if __name__ == "__main__":
+    app.command()(main)()
 
-    if args.print_completion:  # Check for print-completion argument
-        print(shtab.complete(parser, args.print_completion))
-        return
-
-    try:
-        cli_instance = btcli(args=sys.argv[1:])
-        cli_instance.run()
-    except KeyboardInterrupt:
-        print('KeyboardInterrupt')
-    except RuntimeError as e:
-        bt_logging.error(f'RuntimeError: {e}')
-    except websocket.WebSocketConnectionClosedException as e:
-        bt_logging.error(f'Subtensor related error. WebSocketConnectionClosedException: {e}')
-
-
-if __name__ == '__main__':
-    main()
 
 # The MIT License (MIT)
 # Copyright © 2021 Yuma Rao

@@ -9,9 +9,6 @@ from bittensor.bittensor_cli_system.cli_repl import CLIRepl  # This should be yo
 from bittensor.bittensor_cli_system.cli_util import Display
 
 
-app = typer.Typer()
-
-
 def load_legacy_cli_system():
     """
     Dynamically imports and returns the main function of the legacy CLI system.
@@ -34,8 +31,4 @@ def main(interactive: bool = typer.Option(False, "--interactive", "-i", help="En
     else:
         display = injector.get(Display)
         display.display("Non-interactive mode not yet implemented.")
-
-
-if __name__ == "__main__":
-    app.command()(main)()
 

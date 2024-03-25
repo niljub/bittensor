@@ -50,11 +50,6 @@ MockSubtensor = LegacyLoader("bittensor.mock.subtensor_mock.MockSubtensor", "Moc
 MockWallet = LegacyLoader("bittensor.mock.wallet_mock.MockWallet", "MockWallet")
 SubnetsAPI = LegacyLoader("bittensor.subnets.SubnetsAPI", "SubnetsAPI")
 
-from bittensor.plugins.cli.axon_plugin.config import AxonPluginConfig
-from bittensor.plugins.cli.subtensor_plugin.config import SubtensorPluginConfig
-from bittensor.plugins.cli.threadexec_plugin.config import ThreadExecPluginConfig
-from bittensor.plugins.cli.wallets_plugin.config import WalletPluginConfig
-
 
 configs = [
     AxonPluginConfig(),
