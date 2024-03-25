@@ -48,3 +48,14 @@ MockKeyfile = LegacyLoader("bittensor.mock.keyfile_mock.MockKeyfile", "MockKeyfi
 MockSubtensor = LegacyLoader("bittensor.mock.subtensor_mock.MockSubtensor", "MockSubtensor")
 MockWallet = LegacyLoader("bittensor.mock.wallet_mock.MockWallet", "MockWallet")
 SubnetsAPI = LegacyLoader("bittensor.subnets.SubnetsAPI", "SubnetsAPI")
+
+from bittensor.bittensor_plugin_system.plugins.cli_plugins.axon_plugin.axon import AxonConfig
+
+configs = [
+    AxonConfig(),
+    subtensor.config(),
+    PriorityThreadPoolExecutor.config(),
+    wallet.config(),
+    logging.config(),
+]
+defaults = config.merge_all(configs)

@@ -216,16 +216,17 @@ from .wallet import *
 from .utils import *
 from .utils.balance import Balance as Balance
 from .chain_data import *
-
-
-from .synapse import synapse
-from .stream import stream
-from .tensor import tensor
 from .subtensor import subtensor as subtensor
 from .cli_legacy import cli as cli, COMMANDS as ALL_COMMANDS
 from .btlogging import logging as logging
 from .metagraph import metagraph as metagraph
 from .threadpool import PriorityThreadPoolExecutor as PriorityThreadPoolExecutor
+
+from .synapse import *
+from .stream import *
+from .tensor import *
+
+
 from .axon import axon as axon
 from .dendrite import dendrite as dendrite
 
