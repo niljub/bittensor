@@ -11,6 +11,8 @@ class CLIPlugin(BasePlugin):
     """
     Abstract base class for CLI plugins.
     """
+    def __init__(self):
+        super().__init__()
 
     @abstractmethod
     def initialize(self, config_path: str) -> None:
