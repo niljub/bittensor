@@ -28,5 +28,3 @@ To maintain a consistent and organized architecture within the Bittensor Plugin 
 - **Clarity and Consistency**: Names should be clear, concise, and consistent across the plugin ecosystem. Avoid abbreviations unless they are commonly understood.
 - **CamelCase for Classes**: Use CamelCase for class names to maintain readability and adhere to Python's naming conventions.
 - **Lowercase with Underscores for Directories and Files**: Use lowercase letters for directory and file names, separating words with underscores. This approach matches Python's package and module naming conventions.
-
-By adhering to these naming conventions, the Bittensor Plugin System aims to foster an environment where plugins can be easily developed, discovered, and integrated, enhancing the overall extensibility and maintainability of the system.
