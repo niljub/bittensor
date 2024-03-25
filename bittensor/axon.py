@@ -43,6 +43,9 @@ from starlette.requests import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from typing import List, Optional, Tuple, Callable, Any, Dict
 
+from injector import inject, singleton
+from bittensor.bittensor_plugin_system.system_plugins.cli.axon_plugin.config import AxonPluginConfig
+
 from bittensor.errors import (
     InvalidRequestNameError,
     SynapseDendriteNoneException,
@@ -151,7 +154,7 @@ class FastAPIThreadedServer(uvicorn.Server):
             self.should_exit = True
 
 
-class axon:
+class Axon:
     """
     The ``axon`` class in Bittensor is a fundamental component that serves as the server-side interface for a neuron within the Bittensor network.
 
@@ -229,7 +232,7 @@ class axon:
             priority_fn = prioritize_my_synape
         )
 
-        # Serve and start your axon.
+        # Serve and start your Axon
         my_axon.serve(
             netuid = ...
             subtensor = ...
@@ -253,7 +256,7 @@ class axon:
 
     Args:
         wallet (bittensor.wallet, optional): Wallet with hotkey and coldkeypub.
-        config (bittensor.config, optional): Configuration parameters for the axon.
+        config (bittensor.config, optional): Configuration parameters for the Axon
         port (int, optional): Port for server binding.
         ip (str, optional): Binding IP address.
         external_ip (str, optional): External IP address to broadcast.
@@ -286,6 +289,19 @@ class axon:
             signatures, providing error handling to prevent runtime issues.
 
     """
+
+    #
+    # Methods for backwards compatibility
+    #
+    def config(self, axon_config: AxonPluginConfig):
+        return AxonPluginConfig.config()
+
+    def add_args(self, *args, **kwargs):
+        return AxonPluginConfig.add_args(*args, **kwargs)
+
+    def help(self):
+        return AxonPluginConfig.help()
+    # End compat methods
 
     def __init__(
         self,
@@ -573,7 +589,6 @@ class axon:
         self.required_hash_fields[request_name] = required_hash_fields
 
         return self
-
 
     async def verify_body_integrity(self, request: Request):
         """

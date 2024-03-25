@@ -1,28 +1,15 @@
-from typing import Any
+import os
+from typing import Any, Optional
+import argparse
 
-from bittensor.bittensor_plugin_system.core.plugins import CLIPlugin
-
-
-class AxonPlugin(CLIPlugin):
-
-    def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
-        pass
-
-    def _core_execute(self, data: Any) -> Any:
-        pass
-
-    def shutdown(self) -> None:
-        pass
-
-    def initialize(self, config_path: str) -> None:
-        pass
+from bittensor.config import DefaultConfig
+from bittensor.bittensor_plugin_system.core.cli_plugin import CLIPlugin, CLIConfig
+from bittensor import config
 
 
-class AxonPluginConfig():
-
-
+class AxonPluginConfig(CLIConfig):
     @classmethod
-    def config(cls) -> "bittensor.config":
+    def config(cls) -> "config":
         """
         Parses the command-line arguments to form a Bittensor configuration object.
 
@@ -31,7 +18,7 @@ class AxonPluginConfig():
         """
         parser = argparse.ArgumentParser()
         cls.add_args(parser)  # Add specific axon-related arguments
-        return bittensor.config(parser, args=[])
+        return config(parser, args=[])
 
     @classmethod
     def help(cls):

@@ -217,7 +217,7 @@ from .utils import *
 from .utils.balance import Balance as Balance
 from .chain_data import *
 from .subtensor import subtensor as subtensor
-from .cli_legacy import cli as cli, COMMANDS as ALL_COMMANDS
+from bittensor.bittensor_cli_system.cli_legacy import cli as cli, COMMANDS as ALL_COMMANDS
 from .btlogging import logging as logging
 from .metagraph import metagraph as metagraph
 from .threadpool import PriorityThreadPoolExecutor as PriorityThreadPoolExecutor
@@ -227,8 +227,8 @@ from .stream import *
 from .tensor import *
 
 
-from .axon import axon as axon
-from .dendrite import dendrite as dendrite
+from bittensor.axon import Axon as axon
+from bittensor.dendrite import Dendrite as dendrite
 
 from .mock.keyfile_mock import MockKeyfile as MockKeyfile
 from .mock.subtensor_mock import MockSubtensor as MockSubtensor

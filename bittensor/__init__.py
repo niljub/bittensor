@@ -1,6 +1,8 @@
 # bittensor/__init__.py
 import importlib
 import types
+from bittensor.config import config
+from bittensor.btlogging import logging
 
 
 class LegacyLoader(types.ModuleType):
@@ -39,7 +41,6 @@ tensor = LegacyLoader("bittensor.tensor.Tensor", "tensor")
 subtensor = LegacyLoader("bittensor.subtensor.Subtensor", "subtensor")
 cli = LegacyLoader("bittensor.cli_legacy.Cli", "cli")
 COMMANDS = LegacyLoader("bittensor.cli_legacy.COMMANDS", "ALL_COMMANDS")
-logging = LegacyLoader("bittensor.btlogging.Logging", "logging")
 metagraph = LegacyLoader("bittensor.metagraph.Metagraph", "metagraph")
 PriorityThreadPoolExecutor = LegacyLoader("bittensor.threadpool.PriorityThreadPoolExecutor", "PriorityThreadPoolExecutor")
 axon = LegacyLoader("bittensor.axon.Axon", "axon")
@@ -49,13 +50,17 @@ MockSubtensor = LegacyLoader("bittensor.mock.subtensor_mock.MockSubtensor", "Moc
 MockWallet = LegacyLoader("bittensor.mock.wallet_mock.MockWallet", "MockWallet")
 SubnetsAPI = LegacyLoader("bittensor.subnets.SubnetsAPI", "SubnetsAPI")
 
-from bittensor.bittensor_plugin_system.plugins.cli_plugins.axon_plugin.axon import AxonConfig
+from bittensor.plugins.cli.axon_plugin.config import AxonPluginConfig
+from bittensor.plugins.cli.subtensor_plugin.config import SubtensorPluginConfig
+from bittensor.plugins.cli.threadexec_plugin.config import ThreadExecPluginConfig
+from bittensor.plugins.cli.wallets_plugin.config import WalletPluginConfig
+
 
 configs = [
-    AxonConfig(),
-    subtensor.config(),
-    PriorityThreadPoolExecutor.config(),
-    wallet.config(),
+    AxonPluginConfig(),
+    SubtensorPluginConfig(),
+    ThreadExecPluginConfig(),
+    WalletPluginConfig(),
     logging.config(),
 ]
 defaults = config.merge_all(configs)

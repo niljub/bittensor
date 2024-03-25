@@ -36,7 +36,7 @@ class InvalidConfigFile(Exception):
     pass
 
 
-class config(DefaultMunch):
+class Config(DefaultMunch):
     """
     Implementation of the config class, which manages the configuration of different Bittensor modules.
     """
@@ -377,7 +377,7 @@ class config(DefaultMunch):
 T = TypeVar("T", bound="DefaultConfig")
 
 
-class DefaultConfig(config):
+class DefaultConfig(Config):
     """
     A Config with a set of default values.
     """
@@ -388,3 +388,7 @@ class DefaultConfig(config):
         Get default config.
         """
         raise NotImplementedError("Function default is not implemented.")
+
+
+# for backwards compatibility
+config = Config
