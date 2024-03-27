@@ -1,7 +1,7 @@
 # cli_repl.py
 from datetime import datetime
 import sys
-
+import asyncio
 from injector import inject
 from rich.console import Console
 from rich.layout import Layout
@@ -69,15 +69,53 @@ class CLIRepl:
             Panel(f"{clock} | {mode_display} | {status}", style="on blue")
         )
 
+        async def print_counter():
+            """
+            Coroutine that prints counters.
+            """
+            try:
+                i = 0
+                while True:
+                    print("Counter: %i" % i)
+                    i += 1
+                    await asyncio.sleep(3)
+            except asyncio.CancelledError:
+                print("Background task cancelled.")
+
+        async def interactive_shell():
+            """
+            Like `interactive_shell`, but doing things manual.
+            """
+            # Create Prompt.
+            session = PromptSession("Say something: ")
+
+            # Run echo loop. Read text from stdin, and reply it back.
+            while True:
+                try:
+                    result = await session.prompt_async()
+                    print(f'You said: "{result}"')
+                except (EOFError, KeyboardInterrupt):
+                    return
+
+        async def main():
+            with patch_stdout():
+                background_task = asyncio.create_task(print_counter())
+                try:
+                    await interactive_shell()
+                finally:
+                    background_task.cancel()
+                print("Quitting event loop. Bye.")
+
     async def start(self):
         """
         Starts the REPL, continuously accepting input commands from the user.
         """
-        with self.console.status("Bittensor CLI is running...", spinner="dots"):
-            self.console.print(self.layout)
-            while True:
-                user_input = self.console.input("[bold green]Bittensor > [/bold green]")
-                await self.process_command(user_input)
+        self.setup_layout()
+        #with self.console.status("Bittensor CLI is running...", spinner="dots"):
+        self.console.print(self.layout)
+        while True:
+            user_input = self.console.input("[bold green]Bittensor > [/bold green]")
+            await self.process_command(user_input)
 
     async def process_command(self, command: str):
         """

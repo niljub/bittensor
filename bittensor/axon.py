@@ -45,7 +45,7 @@ from typing import List, Optional, Tuple, Callable, Any, Dict
 
 from injector import inject, singleton
 from bittensor.bittensor_cli_system.di_config import DIModule
-from bittensor.system_plugins.axon_cli_plugin.config import AxonPluginConfig
+from bittensor.system_plugins.axon_cli_plugin.axon_config import AxonPluginConfig
 
 from bittensor.errors import (
     InvalidRequestNameError,

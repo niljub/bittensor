@@ -1,7 +1,7 @@
 # bittensor/__init__.py
 import importlib
 import types
-from bittensor.config import config
+# from bittensor.config import config
 from bittensor.btlogging import logging
 
 
@@ -51,11 +51,4 @@ MockWallet = LegacyLoader("bittensor.mock.wallet_mock.MockWallet", "MockWallet")
 SubnetsAPI = LegacyLoader("bittensor.subnets.SubnetsAPI", "SubnetsAPI")
 
 
-configs = [
-    AxonPluginConfig(),
-    SubtensorPluginConfig(),
-    ThreadExecPluginConfig(),
-    WalletPluginConfig(),
-    logging.config(),
-]
-defaults = config.merge_all(configs)
+

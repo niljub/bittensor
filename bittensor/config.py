@@ -255,7 +255,14 @@ class SystemConfig:
 # ])
 # Now system_config.config contains all configurations, prioritized and merged.
 
-
+configs = [
+    AxonPluginConfig(),
+    SubtensorPluginConfig(),
+    ThreadExecPluginConfig(),
+    WalletPluginConfig(),
+    logging.config(),
+]
+defaults = config.merge_all(configs)
 
 class Config(DefaultMunch):
     """

@@ -3,11 +3,11 @@ from typing import Any, Optional
 import argparse
 
 from bittensor.config import DefaultConfig
-from bittensor.bittensor_plugin_system.core.cli_plugin import CLIPlugin, CLIConfig
+from bittensor.bittensor_cli_system import CLIConfig
 from bittensor import config
 
 
-class AxonPluginConfig(CLIConfig):
+class AxonConfig(CLIConfig):
     @classmethod
     def config(cls) -> "config":
         """
