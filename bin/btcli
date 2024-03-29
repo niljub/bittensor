@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import asyncio
+from bittensor.sub_subtensor import *
 
 import websocket
 
@@ -6,6 +8,7 @@ import sys
 import shtab
 from bittensor import cli as btcli
 from bittensor import logging as bt_logging
+
 
 
 def main():
@@ -29,7 +32,15 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    install_lazy_loader(
+        [
+            "websocket",
+            "substrateinterface",
+            "bittensor.subtensor.subtensor",
+        ]
+    )
+    asyncio.run(main())
+
 
 # The MIT License (MIT)
 # Copyright © 2021 Yuma Rao
