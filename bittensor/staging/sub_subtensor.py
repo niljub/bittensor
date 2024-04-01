@@ -1,111 +1,285 @@
-import threading
-import queue
-import time
-import gorilla
-import websocket
+# sub_subtensor.py
+import asyncio
+import dataclasses
 import importlib.abc
-import sys
 import inspect
-from typing import Callable, List, Optional, Any, Dict, Union, Type
-import bittensor
-import substrateinterface
+import logging
+import queue
+import sys
+import threading
+import time
+import typing as t
+from asyncio import Event, Queue, Task
+from dataclasses import dataclass
 from logging import getLogger
+from typing import Any, Callable, Dict, List, Optional, Type, Union
+
 import aiohttp
-
-from websocket import create_connection, WebSocketConnectionClosedException
-
-from scalecodec.base import ScaleBytes, RuntimeConfigurationObject, ScaleType
-from scalecodec.types import GenericCall, GenericExtrinsic, Extrinsic, MultiAccountId, GenericRuntimeCallDefinition
-from scalecodec.type_registry import load_type_registry_preset
-from scalecodec.updater import update_type_registries
-from substrateinterface.extensions import Extension
+import bittensor
+import orjson as json
+import substrateinterface
+from aiohttp import ClientWebSocketResponse, WSMsgType, web
+from scalecodec.base import RuntimeConfigurationObject, ScaleBytes, ScaleType
+from substrateinterface.exceptions import (
+    BlockNotFound,
+    ConfigurationError,
+    ExtrinsicNotFound,
+    ExtensionCallNotFound,
+    StorageFunctionNotFound,
+    SubstrateRequestException,
+)
 from substrateinterface.interfaces import ExtensionInterface
+from websocket import WebSocketConnectionClosedException, create_connection
 
-from substrateinterface.storage import StorageKey
-
-from substrateinterface.exceptions import SubstrateRequestException, ConfigurationError, StorageFunctionNotFound, BlockNotFound, ExtrinsicNotFound, ExtensionCallNotFound
-from substrateinterface.constants import *
-from substrateinterface.keypair import Keypair, KeypairType, MnemonicLanguageCode
-from substrateinterface.utils.ss58 import ss58_decode, ss58_encode, is_valid_ss58_address, get_ss58_format
 logger = getLogger(__name__)
+from functools import wraps
+from typing import Any, Callable
+
+from .event_hooks import publish_before, publish_after, injector
+from .utils import no_operation, NOOP
 
 
-class LazyProperty(object):
-
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        else:
-            value = self.func(instance)
-            setattr(instance, self.func.__name__, value)
-            return value
 
 
-class LazyLoader(importlib.abc.Loader):
+
+@dataclass
+class SocketStats:
+    """Dataclass to keep track of WebSocket connection statistics.
+
+    Attributes:
+        n_received (int): Number of messages received.
+        n_receive_format_errors (int): Number of received messages with format errors.
+        n_sent (int): Number of messages sent.
+        n_send_format_errors (int): Number of sent messages with format errors.
+        n_ignored (int): Number of messages ignored.
     """
-    A loader that defers the loading of a module until an attribute is accessed.
-    """
-
-    def __init__(self, fullname: str, path: Optional[str]):
-        self.module_name = fullname
-        self.path = path
-
-    def create_module(self, spec):
-        # Create a new module object, but don't initialize it yet.
-        return None
-
-    def exec_module(self, module):
-        # Replace the module's class with a subclass that uses __getattr__
-        # to load the module upon first attribute access.
-        module.__class__ = LazyModule
-        module.__dict__["_lazy_name"] = self.module_name
-        module.__dict__["_lazy_loaded"] = False
+    n_received: int = 0
+    n_receive_format_errors: int = 0
+    n_sent: int = 0
+    n_send_format_errors: int = 0
+    n_ignored: int = 0
 
 
-class LazyModule(importlib.abc.Loader):
-    """
-    Subclass of the module type that loads the actual module upon first attribute access.
-    """
+class WSConnectionHandler:
+    """Handles WebSocket connections, both sending and receiving messages, in an async manner.
 
-    def __getattr__(self, name):
-        if "_lazy_loaded" not in self.__dict__:
-            self.__dict__["_lazy_loaded"] = True
-            loader = importlib.machinery.SourceFileLoader(
-                self.__dict__["_lazy_name"], self.__dict__["_lazy_name"]
-            )
-            loader.exec_module(self)
-        return getattr(self, name)
+    This class manages WebSocket connections, supporting both server and client side operations. It handles
+    message sending and receiving through asyncio queues, tracks connection statistics, and manages
+    connection lifecycle events such as close requests.
 
-
-class LazyImportFinder(importlib.abc.MetaPathFinder):
-    """
-    A meta_path finder to support lazy loading of modules.
-    """
-
-    def __init__(self, to_lazy_load: List[str]):
-        self.to_lazy_load = to_lazy_load
-
-    def find_spec(self, fullname, path, target=None):
-        if fullname in self.to_lazy_load:
-            return importlib.machinery.ModuleSpec(fullname, LazyLoader(fullname, path))
-
-
-def install_lazy_loader(to_lazy_load: List[str]):
-    """
-    Install the lazy loader for the specified modules.
+    Attributes:
+        ws_response (Union[ClientWebSocketResponse, web.WebSocketResponse]): The WebSocket response object.
+        receive_queue (asyncio.Queue): Queue for incoming messages.
+        send_queue (asyncio.Queue): Queue for outgoing messages.
+        stats (Stats): Connection statistics.
+        socket_errors (List[Any]): List to track socket errors.
 
     Args:
-    to_lazy_load (List[str]): A list of fully qualified module names to lazy load.
+        ws_response (Union[ClientWebSocketResponse, web.WebSocketResponse]): The WebSocket response object.
+        logger (logging.Logger, optional): Logger instance for logging. Defaults to a logger named __name__.
+        ws_msg_type (Literal[WSMsgType.BINARY, WSMsgType.TEXT], optional): Type of WebSocket message (binary or text).
+            Defaults to WSMsgType.TEXT.
+        receive_queue (asyncio.Queue, optional): Queue for incoming messages. If None, a new queue is created.
+        send_queue (asyncio.Queue, optional): Queue for outgoing messages. If None, a new queue is created.
     """
-    sys.meta_path.insert(0, LazyImportFinder(to_lazy_load))
+    MAX_INVALID_REQUESTS = 5
+
+    def __init__(
+        self,
+        ws_response: t.Union[ClientWebSocketResponse, web.WebSocketResponse],
+        *,
+        logger: logging.Logger = None,
+        ws_msg_type: t.Literal[WSMsgType.BINARY, WSMsgType.TEXT] = WSMsgType.TEXT,
+        receive_queue: Queue = None,
+        send_queue: Queue = None,
+    ):
+        self._logger = logger or logging.getLogger(__name__)
+        self._close_requested = Event()
+        self._sender_task: t.Optional[Task] = None
+        self._stop_watcher_task: t.Optional[Task] = None
+
+        assert ws_msg_type in [WSMsgType.BINARY, WSMsgType.TEXT], "Invalid WebSocket message type."
+        self._ws_msg_type = ws_msg_type
+
+        self.ws_response = ws_response
+        self.receive_queue = receive_queue or Queue(maxsize=512)
+        self.send_queue = send_queue or Queue(maxsize=512)
+
+        self.socket_errors: t.List[t.Any] = []
+        self.stats = SocketStats()
+
+    def ws_response_repr(self) -> str:
+        """Generates a string representation of the WebSocket response object.
+
+        Returns:
+            str: String representation of the WebSocket response.
+        """
+        if isinstance(self.ws_response, web.WebSocketResponse):
+            return f"<WebSocketResponse object at {hex(id(self.ws_response))}>"
+        return str(self.ws_response)
+
+    async def run_loop(self) -> None:
+        """Main loop for handling incoming and outgoing WebSocket messages.
+
+        This coroutine sets up tasks for sending and receiving messages over the WebSocket connection,
+        and monitors these tasks until a close request is made or an error occurs.
+        """
+        self._sender_task = asyncio.create_task(self._send_loop())
+        self._stop_watcher_task = asyncio.create_task(self._watch_for_stop())
+
+        await asyncio.gather(
+            self._receive_loop(),
+            self._sender_task,
+            self._stop_watcher_task,
+            return_exceptions=True,
+        )
+
+    async def _send_loop(self) -> None:
+        """Coroutine to handle sending messages from the send queue over the WebSocket."""
+        try:
+            while not self._close_requested.is_set():
+                message = await self.send_queue.get()
+                if message is None:  # A None value is used to signal shutdown.
+                    break
+                await self.ws_response.send_str(message)  # Assuming messages are always strings.
+                self.stats.n_sent += 1
+        except Exception as e:
+            self.socket_errors.append(e)
+            self._logger.error(f"Send loop error: {e}")
+        finally:
+            await self._close()
+
+    async def _receive_loop(self) -> None:
+        """Coroutine to handle receiving messages from the WebSocket and putting them into the receive queue."""
+        try:
+            async for msg in self.ws_response:
+                if msg.type == self._ws_msg_type:
+                    await self.receive_queue.put(msg.data)
+                    self.stats.n_received += 1
+                else:
+                    self.stats.n_ignored += 1
+        except Exception as e:
+            self.socket_errors.append(e)
+            self._logger.error(f"Receive loop error: {e}")
+        finally:
+            await self._close()
+
+    async def _watch_for_stop(self) -> None:
+        """Coroutine to monitor for a stop event, triggering cleanup when received."""
+        await self._close_requested.wait()
+        await self._close()
+
+    async def _close(self) -> None:
+        """Cleans up tasks and the WebSocket connection, preparing for shutdown."""
+        if not self.ws_response.closed:
+            await self.ws_response.close()
+        if self._sender_task and not self._sender_task.done():
+            self._sender_task.cancel()
+        if self._stop_watcher_task and not self._stop_watcher_task.done():
+            self._stop_watcher_task.cancel()
 
 
-def NOOP(*args, **kwargs):
-    """Empty callback function (no-operation)"""
-    pass
+class JSONRPCProxyClient:
+    """
+    An asynchronous JSON RPC proxy client that communicates via websockets,
+    supporting both call/response and publish/subscribe mechanisms. It reads
+    requests from an input asyncio queue, sends them to the server, and writes
+    responses or subscriptions data to an output asyncio queue.
+
+    Attributes:
+        uri (str): The websocket URI to connect to.
+        input_queue (asyncio.Queue): Queue for incoming messages to be sent.
+        output_queue (asyncio.Queue): Queue for outgoing messages received from the server.
+    """
+    task: asyncio.Task = None
+    init_done_event: asyncio.Event
+    ws_handler: t.Optional[WSConnectionHandler]
+    errors: list
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        logger: Optional[logging.Logger] = None,
+        session_kwargs: Optional[dict[str, t.Any]] = None,
+        connection_kwargs: Optional[dict[str, t.Any]] = None,
+        ws_msg_type=aiohttp.WSMsgType.TEXT,
+        receive_queue: Optional[asyncio.Queue] = None,
+        send_queue: Optional[asyncio.Queue] = None,
+    ) -> None:
+        self.url = url
+        self.receive_queue = receive_queue
+        self.send_queue = send_queue
+        self.session_kwargs = session_kwargs or {}
+        self.conn_kwargs = connection_kwargs or {}
+        self.ws_msg_type = ws_msg_type
+        self.logger = logger
+        self.session = aiohttp.ClientSession(session_kwargs)
+        self.ws_handler = None
+        self.errors = []
+        self.init_done_event = asyncio.Event()
+
+    async def connect(self, connect_cb=NOOP) -> None:
+        """
+        Connects to the websocket and starts listening for incoming and outgoing messages.
+        """
+        try:
+            async with aiohttp.ClientSession(**self.session_kwargs) as session:
+                async with session.ws_connect(self.url, **self.conn_kwargs) as ws:
+                    ws_handler = WSConnectionHandler(
+                        ws,
+                        logger=logger,
+                        ws_msg_type=self.ws_msg_type,
+                        receive_queue=self.receive_queue,
+                        send_queue=self.send_queue,
+                    )
+                    if callable(connect_cb):
+                        connect_cb(ws_handler)
+                    await ws_handler.run_loop()
+        except aiohttp.ClientError as e:
+            self.errors.append(e)
+
+
+    async def _read_from_queue_and_send(self) -> None:
+        """
+        Reads JSON RPC requests from the input queue and sends them to the server.
+        """
+        while True:
+            message = await self.send_queue.get()
+            if message is None:
+                break
+            await self.ws.send_json(message)
+
+    async def _receive_and_write_to_queue(self) -> None:
+        """
+        Receives messages from the server and writes them to the output queue.
+        """
+        async for msg in self.ws:
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                await self.output_queue.put(json.loads(msg.data))
+            elif msg.type == aiohttp.WSMsgType.CLOSED:
+                break
+            elif msg.type == aiohttp.WSMsgType.ERROR:
+                break
+
+    async def close(self) -> None:
+        """
+        Closes the websocket connection and the aiohttp client session.
+        """
+        await self.ws.close()
+        await self.session.close()
+
+    async def __aenter__(self) -> 'JSONRPCProxyClient':
+        """
+        Enables use of the client using async with statement.
+        """
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        """
+        Ensures resources are released when exiting the async with context.
+        """
+        # await self.close()
 
 
 class ProxyWrapMeta(type):
@@ -129,7 +303,19 @@ class ProxyWrapMeta(type):
         return wrapper
 
 
-class GenericProxy(metaclass=ProxyWrapMeta):
+class ProxyMeta(type):
+    """
+    Metaclass for creating a proxy that can dynamically intercept and manage
+    method calls, property accesses, and attribute accesses.
+    """
+
+    def __call__(cls, *args, **kwargs):
+        obj = cls.__new__(cls, __name="Generic Proxy", __namespace="bittensor", __module__="bittensor.sub_subtensor", __qualname__="")
+        obj.__init__(*args, **kwargs)
+        return obj
+
+
+class GenericProxy(metaclass=ProxyMeta):
     def __init__(
             self,
             proxy_class: Type[Any],
@@ -183,8 +369,6 @@ class GenericProxy(metaclass=ProxyWrapMeta):
                 return prop
 
         return getattr(self._instance, item)
-
-
 
 
 class SingletonWebSocket:
@@ -265,9 +449,9 @@ def apply_patch():
 apply_patch()
 
 
-class SubstrateProxyInterface():
+class SubstrateProxyInterface:
 
-    def __init__(self, proxy_class=None, method_overloads=None, property_overloads=None, url=None, websocket=None, ss58_format=None, type_registry=None, type_registry_preset=None,
+    def __init__(self, url=None, websocket=None, ss58_format=None, type_registry=None, type_registry_preset=None,
                  cache_region=None, runtime_config=None, use_remote_preset=False, ws_options=None,
                  auto_discover=True, auto_reconnect=True, config=None):
         """
@@ -286,21 +470,21 @@ class SubstrateProxyInterface():
         """
         self._proxy = GenericProxy(
             proxy_class=substrateinterface.SubstrateInterface,
-            method_overloads={"__init__": self.__init__, "__enter__": self.__enter__, "__exit__": self, "close": NOOP, }
+            method_overloads={"__init__": self.__init__, "__enter__": self.__enter__, "__exit__": NOOP, "close": NOOP, }
         )
 
         if not url:
             raise ValueError("'url' must be provided")
 
         # Initialize lazy loading variables
-        self.__version = None
-        self.__name = None
-        self.__properties = None
-        self.__chain = None
+        self._proxy.__version = None
+        self._proxy.__name = None
+        self._proxy.__properties = None
+        self._proxy.__chain = None
 
-        self.__token_decimals = None
-        self.__token_symbol = None
-        self.__ss58_format = None
+        self._proxy.__token_decimals = None
+        self._proxy.__token_symbol = None
+        self._proxy.__ss58_format = None
 
         if not runtime_config:
             runtime_config = RuntimeConfigurationObject()
@@ -310,55 +494,41 @@ class SubstrateProxyInterface():
         self.cache_region = cache_region
 
         if ss58_format is not None:
-            self.ss58_format = ss58_format
+            self._proxy.ss58_format = ss58_format
 
-        self.type_registry_preset = type_registry_preset
-        self.type_registry = type_registry
+        self._proxy.type_registry_preset = type_registry_preset
+        self._proxy.type_registry = type_registry
 
-        self.request_id = 1
-        self.url = url
-        self.websocket = None
+        self._proxy.request_id = 1
+        self._proxy.url = url
+        self._proxy.websocket = None
+        self._proxy.ws_options = ws_options or {}
 
-        # Websocket connection options
-        self.ws_options = ws_options or {}
+        if 'max_size' not in self._proxy.ws_options:
+            self._proxy.ws_options['max_size'] = 2 ** 32
+        if 'read_limit' not in self._proxy.ws_options:
+            self._proxy.ws_options['read_limit'] = 2 ** 32
+        if 'write_limit' not in self._proxy.ws_options:
+            self._proxy.ws_options['write_limit'] = 2 ** 32
 
-        # Websocket connection options
-        self.ws_options = {}
-
-        if 'max_size' not in self.ws_options:
-            self.ws_options['max_size'] = 2 ** 32
-
-        if 'read_limit' not in self.ws_options:
-            self.ws_options['read_limit'] = 2 ** 32
-
-        if 'write_limit' not in self.ws_options:
-            self.ws_options['write_limit'] = 2 ** 32
-
-        self.__rpc_message_queue = []
-
-        if self.url and (self.url[0:6] == 'wss://' or self.url[0:5] == 'ws://'):
-            self.connect_websocket()
-
-        elif websocket:
-            self.websocket = websocket
-
-        self.mock_extrinsics = None
-        self.default_headers = {
+        self._proxy.__rpc_message_queue = []
+        self._proxy.mock_extrinsics = None
+        self._proxy.default_headers = {
             'content-type': "application/json",
             'cache-control': "no-cache"
         }
 
-        self.metadata = None
+        self._proxy.metadata = None
 
-        self.runtime_version = None
-        self.transaction_version = None
+        self._proxy.runtime_version = None
+        self._proxy.transaction_version = None
 
-        self.block_hash = None
-        self.block_id = None
+        self._proxy.block_hash = None
+        self._proxy.block_id = None
 
-        self.__metadata_cache = {}
+        self._proxy.__metadata_cache = {}
 
-        self.config = {
+        self._proxy.config = {
             'use_remote_preset': use_remote_preset,
             'auto_discover': auto_discover,
             'auto_reconnect': auto_reconnect,
@@ -367,26 +537,26 @@ class SubstrateProxyInterface():
         }
 
         if type(config) is dict:
-            self.config.update(config)
-
+            self._proxy.config.update(config)
 
         # Initialize extension interface
-        self.extensions = ExtensionInterface(self)
+        self._proxy.extensions = ExtensionInterface(self)
 
-        self.session = requests.Session()
+        self._proxy.session = aiohttp.ClientSession()
 
-        self.reload_type_registry(use_remote_preset=use_remote_preset, auto_discover=auto_discover)
+        self._proxy.reload_type_registry(use_remote_preset=use_remote_preset, auto_discover=auto_discover)
 
     def connect_websocket(self):
         """
-        (Re)creates the websocket connection, if the URL contains a 'ws' or 'wss' scheme
-
-        Returns
-        -------
-
+        Checks if an existing websocket exists, creates if not.
+        Checks if the websocket is connected to the server, connects if not.
         """
-        if self.url and (self.url[0:6] == 'wss://' or self.url[0:5] == 'ws://'):
-            self.debug_message("Connecting to {} ...".format(self.url))
+
+        if not self.websocket:
+
+
+        if self._proxy.url and (self._proxy.url[0:6] == 'wss://' or self._proxy.url[0:5] == 'ws://'):
+            self.debug_message("Connecting to {} ...".format(self._proxy.url))
             self.websocket = create_connection(
                 self.url,
                 **self.ws_options
@@ -446,6 +616,9 @@ class SubstrateProxyInterface():
 
         return name in self.config['rpc_methods']
 
+    @injector.inject
+    @publish_after(topic="after_substrate_request")
+    @publish_before(topic="before_substrate_request")
     def rpc_request(self, method, params, result_handler=None):
         """
         Method that handles the actual RPC request to the Substrate node. The other implemented functions eventually
@@ -494,7 +667,7 @@ class SubstrateProxyInterface():
 
             while json_body is None:
                 # Search for subscriptions
-                for message, remove_message in list_remove_iter(self.__rpc_message_queue):
+                for message, remove_message in list_remove_iter(self._proxy.__rpc_message_queue):
 
                     # Check if result message is matching request ID
                     if 'id' in message and message['id'] == request_id:
@@ -516,7 +689,7 @@ class SubstrateProxyInterface():
                             json_body = message
 
                 # Process subscription updates
-                for message, remove_message in list_remove_iter(self.__rpc_message_queue):
+                for message, remove_message in list_remove_iter(self._proxy.__rpc_message_queue):
                     # Check if message is meant for this subscription
                     if 'params' in message and message['params']['subscription'] == subscription_id:
 
@@ -533,7 +706,7 @@ class SubstrateProxyInterface():
 
                 # Read one more message to queue
                 if json_body is None:
-                    self.__rpc_message_queue.append(json.loads(self.websocket.recv()))
+                    self._proxy.__rpc_message_queue.append(json.loads(self.websocket.recv()))
 
         else:
 
