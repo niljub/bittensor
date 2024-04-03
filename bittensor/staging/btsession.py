@@ -27,7 +27,7 @@ class SocketStats:
     n_ignored: int = 0
 
 
-class WSMesssageHandler:
+class WSMessageHandler:
     """Handles WebSocket connections, both sending and receiving messages, in an async manner.
 
     This class manages WebSocket connections, supporting both server and client side operations. It handles
@@ -41,18 +41,11 @@ class WSMesssageHandler:
         stats (Stats): Connection statistics.
         socket_errors (List[Any]): List to track socket errors.
 
-    Args:
-        ws_response (Union[ClientWebSocketResponse, web.WebSocketResponse]): The WebSocket response object.
-        logger (logging.Logger, optional): Logger instance for logging. Defaults to a logger named __name__.
-        ws_msg_type (Literal[WSMsgType.BINARY, WSMsgType.TEXT], optional): Type of WebSocket message (binary or text).
-            Defaults to WSMsgType.TEXT.
-        receive_queue (asyncio.Queue, optional): Queue for incoming messages. If None, a new queue is created.
-        send_queue (asyncio.Queue, optional): Queue for outgoing messages. If None, a new queue is created.
     """
     MAX_INVALID_REQUESTS = 5
 
     @inject
-    def __init__(self, session: ClientSession, send_queue: Queue, recv_queue: Queue, logger: logging.Logger):
+    def __init__(self, session: ClientSession, send_queue: Queue, recv_queue: Queue, ws_response, receive_queue):
         self.session = session
         self.send_queue = send_queue
         self.recv_queue = recv_queue
@@ -60,7 +53,7 @@ class WSMesssageHandler:
         self._close_requested = Event()
         self._sender_task: t.Optional[Task] = None
         self._stop_watcher_task: t.Optional[Task] = None
-        self.logger = logger
+        self.logger = logging.getLogger()
         self.ws_response = ws_response
         self.receive_queue = receive_queue
         self.send_queue = send_queue
@@ -155,8 +148,8 @@ class ClientSessionModule(Module):
         return ClientSession()
 
     @provider
-    def provide_message_handler(self) -> WSMesssageHandler:
-        return WSMesssageHandler()
+    def provide_message_handler(self) -> WSMessageHandler:
+        return WSMessageHandler()
 
     @provider
     def provide_send_queue(self) -> Queue:
@@ -170,7 +163,7 @@ class ClientSessionModule(Module):
 class NetworkManager:
     task: asyncio.Task = None
     init_done_event: asyncio.Event
-    ws_handler: t.Optional[WSMesssageHandler]
+    ws_handler: t.Optional[WSMessageHandler]
     errors: list
 
     @inject
@@ -180,7 +173,7 @@ class NetworkManager:
             session: ClientSession,
             send_queue: Queue,
             recv_queue: Queue,
-            ws_handler: WSMesssageHandler
+            ws_handler: WSMessageHandler
     ):
         self.network = network
         self.recv_queue = recv_queue
@@ -195,6 +188,15 @@ class NetworkManager:
         self.websocket = await self.session.ws_connect(self.network)
         return self
 
+    async def connect(self):
+        self.websocket = await self.session.ws_connect(self.network)
+        return self
+
+    async def disconnect(self):
+        if self.websocket is not None:
+            await self.websocket.close()
+        await self.session.close()
+
     async def __aexit__(self, exc_type, exc, tb):
         if self.websocket is not None:
             await self.websocket.close()
@@ -205,18 +207,65 @@ class NetworkModule(Module):
     @provider
     @singleton
     def provide_client_session(self) -> ClientSession:
+        """Provides a singleton ClientSession instance for WebSocket connections."""
         return ClientSession()
 
-    # This factory function is called with a URL to create a NetworkManager instance
-    def web_socket_manager_factory(self, session: ClientSession, url: str) -> NetworkManager:
-        return NetworkManager(session, url)
+    @provider
+    def provide_send_queue(self) -> Queue:
+        """Provides an asyncio Queue for sending messages."""
+        return asyncio.Queue()
+
+    @provider
+    def provide_recv_queue(self) -> Queue:
+        """Provides an asyncio Queue for receiving messages."""
+        return asyncio.Queue()
+
+    @provider
+    def provide_receive_queue(self) -> Queue:
+        """Provides an asyncio Queue for receiving messages, separate from recv_queue if needed."""
+        return asyncio.Queue()
+
+    @provider
+    def provide_ws_response(self) -> Callable:
+        """Provides the ws_response handler. Adjust the implementation based on your application's needs."""
+        # Placeholder implementation, replace with your actual ws_response logic
+        def ws_response_handler(message):
+            print(f"Received message: {message}")
+        return ws_response_handler
+
+    @provider
+    def provide_ws_message_handler(
+        self,
+        session: ClientSession,
+        send_queue: Queue,
+        recv_queue: Queue,
+        ws_response: Callable,
+        receive_queue: Queue
+    ) -> WSMessageHandler:
+        """Provides an instance of WSMessageHandler with all required dependencies."""
+        return WSMessageHandler(session, send_queue, recv_queue, ws_response, receive_queue)
+
+    @provider
+    def provide_network_manager_factory(
+        self,
+        session: ClientSession,
+        send_queue: Queue,
+        recv_queue: Queue,
+        ws_message_handler: WSMessageHandler
+    ) -> Callable[[str], NetworkManager]:
+        """
+        Provides a factory function for creating NetworkManager instances.
+        """
+        def factory(network: str) -> NetworkManager:
+            return NetworkManager(network, session, send_queue, recv_queue, ws_message_handler)
+        return factory
 
 
 @asynccontextmanager
-async def managed_network(injector: Injector, url: str):
+async def managed_network(injector: Injector, url: str, *args, **kwargs):
     # Use the factory function to get a NetworkManager with the given URL
-    ws_manager_factory = injector.get(NetworkModule.web_socket_manager_factory)
-    ws_manager = ws_manager_factory(url=url)
+    factory = injector.get(Callable[[str], NetworkManager])
+    ws_manager = factory(url)
     try:
         await ws_manager.connect()
         yield ws_manager

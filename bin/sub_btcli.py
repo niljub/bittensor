@@ -34,7 +34,7 @@ class WebSocketManager:
 
 
 async def main():
-    injector = Injector([NetworkModule()])
+    inj = Injector([NetworkModule()])
 
     # Create the parser with shtab support
     parser = btcli.__create_parser__()
@@ -44,16 +44,15 @@ async def main():
         print(shtab.complete(parser, args.print_completion))
         return
 
-    network = btcli.create_config(sys.argv[1:]).subtensor.chain_endpoint
+    # network = btcli.create_config(sys.argv[1:]).subtensor.chain_endpoint
 
-    async with managed_network(injector, network):
-        try:
-            cli_instance = btcli()
-            cli_instance.run()
-        except KeyboardInterrupt:
-            print('KeyboardInterrupt')
-        except RuntimeError as e:
-            bt_logging.error(f'RuntimeError: {e}')
+    try:
+        cli_instance = btcli(args=sys.argv[1:])
+        await cli_instance.run()
+    except KeyboardInterrupt:
+        print('KeyboardInterrupt')
+    except RuntimeError as e:
+        bt_logging.error(f'RuntimeError: {e}')
 
 if __name__ == "__main__":
     install_lazy_loader(

@@ -298,7 +298,8 @@ class cli:
             console.print(f":cross_mark:[red]Unknown command: {config.command}[/red]")
             sys.exit(1)
 
-    def run(self):
+    async def run(self):
+        from bittensor.staging.btsession import managed_network
         """
         Executes the command from the configuration.
         """
@@ -308,18 +309,21 @@ class cli:
             print(shtab.complete(parser, shell))
             return
 
-        # Check if command exists, if so, run the corresponding method.
-        # If command doesn't exist, inform user and exit the program.
-        command = self.config.command
-        if command in COMMANDS:
-            command_data = COMMANDS[command]
+        print(self.config)
 
-            if isinstance(command_data, dict):
-                command_data["commands"][self.config["subcommand"]].run(self)
+        async with managed_network(self.config.subtensor.chain_endpoint) as _:
+            # Check if command exists, if so, run the corresponding method.
+            # If command doesn't exist, inform user and exit the program.
+            command = self.config.command
+            if command in COMMANDS:
+                command_data = COMMANDS[command]
+
+                if isinstance(command_data, dict):
+                    command_data["commands"][self.config["subcommand"]].run(self)
+                else:
+                    command_data.run(self)
             else:
-                command_data.run(self)
-        else:
-            console.print(
-                f":cross_mark:[red]Unknown command: {self.config.command}[/red]"
-            )
-            sys.exit()
+                console.print(
+                    f":cross_mark:[red]Unknown command: {self.config.command}[/red]"
+                )
+                sys.exit()
