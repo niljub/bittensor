@@ -8,6 +8,7 @@ from bittensor.extrinsics.serving import serve_extrinsic
 @pytest.fixture
 def mock_subtensor():
     mock_subtensor = MagicMock(spec=Subtensor)
+    mock_subtensor.substrate = MagicMock()
     mock_subtensor.network = "test_network"
     return mock_subtensor
 
@@ -85,25 +86,25 @@ def test_serve_extrinsic_happy_path(
     test_id,
 ):
     # Arrange
-    mock_subtensor.serve_axon.return_value = (True, "")
-    with patch("bittensor.extrinsics.serving.Confirm.ask", return_value=True):
-        # Act
-        result = serve_extrinsic(
-            mock_subtensor,
-            mock_wallet,
-            ip,
-            port,
-            protocol,
-            netuid,
-            placeholder1,
-            placeholder2,
-            wait_for_inclusion,
-            wait_for_finalization,
-            prompt,
-        )
+    with patch("bittensor.extrinsics.serving._do_serve_axon", return_value=(True, "")):
+        with patch("bittensor.extrinsics.serving.Confirm.ask", return_value=True):
+            # Act
+            result = serve_extrinsic(
+                mock_subtensor,
+                mock_wallet,
+                ip,
+                port,
+                protocol,
+                netuid,
+                placeholder1,
+                placeholder2,
+                wait_for_inclusion,
+                wait_for_finalization,
+                prompt,
+            )
 
-        # Assert
-        assert result == expected, f"Test ID: {test_id}"
+            # Assert
+            assert result == expected, f"Test ID: {test_id}"
 
 
 # Various edge cases
@@ -142,25 +143,25 @@ def test_serve_extrinsic_edge_cases(
     test_id,
 ):
     # Arrange
-    mock_subtensor.serve_axon.return_value = (True, "")
-    with patch("bittensor.extrinsics.serving.Confirm.ask", return_value=True):
-        # Act
-        result = serve_extrinsic(
-            mock_subtensor,
-            mock_wallet,
-            ip,
-            port,
-            protocol,
-            netuid,
-            placeholder1,
-            placeholder2,
-            wait_for_inclusion,
-            wait_for_finalization,
-            prompt,
-        )
+    with patch("bittensor.extrinsics.serving._do_serve_axon", return_value=(True, "")):
+        with patch("bittensor.extrinsics.serving.Confirm.ask", return_value=True):
+            # Act
+            result = serve_extrinsic(
+                mock_subtensor,
+                mock_wallet,
+                ip,
+                port,
+                protocol,
+                netuid,
+                placeholder1,
+                placeholder2,
+                wait_for_inclusion,
+                wait_for_finalization,
+                prompt,
+            )
 
-        # Assert
-        assert result == expected
+            # Assert
+            assert result == expected
 
 
 # Various error cases
@@ -199,22 +200,25 @@ def test_serve_extrinsic_error_cases(
     test_id,
 ):
     # Arrange
-    mock_subtensor.serve_axon.return_value = (False, "Error serving axon")
-    with patch("bittensor.extrinsics.serving.Confirm.ask", return_value=True):
-        # Act
-        result = serve_extrinsic(
-            mock_subtensor,
-            mock_wallet,
-            ip,
-            port,
-            protocol,
-            netuid,
-            placeholder1,
-            placeholder2,
-            wait_for_inclusion,
-            wait_for_finalization,
-            prompt,
-        )
+    with patch("bittensor.extrinsics.serving._do_serve_axon", return_value=(False, "Error serving axon")):
+        with patch("bittensor.extrinsics.serving.Confirm.ask", return_value=True):
+            # Act
+            result = serve_extrinsic(
+                mock_subtensor,
+                mock_wallet,
+                ip,
+                port,
+                protocol,
+                netuid,
+                placeholder1,
+                placeholder2,
+                wait_for_inclusion,
+                wait_for_finalization,
+                prompt,
+            )
 
-        # Assert
-        assert result == expected_error_message
+            # Debug
+            print(f"Result: {result}")
+
+            # Assert
+            assert result == expected_error_message

@@ -18,7 +18,7 @@
 # Standard Lib
 import argparse
 import unittest.mock as mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # 3rd Party
 import pytest
@@ -35,6 +35,7 @@ def test_serve_axon_with_external_ip_set():
     mock_serve_axon = MagicMock(return_value=True)
 
     mock_subtensor = MagicMock(spec=bittensor.subtensor, serve_axon=mock_serve_axon)
+    mock_subtensor.substrate = MagicMock()
 
     mock_add_insecure_port = mock.MagicMock(return_value=None)
     mock_wallet = MagicMock(
@@ -78,13 +79,15 @@ def test_serve_axon_with_external_port_set():
 
     mock_serve = MagicMock(return_value=True)
 
-    mock_serve_axon = MagicMock(return_value=True)
+    mock_serve_axon = MagicMock(return_value=True) 
 
     mock_subtensor = MagicMock(
         spec=bittensor.subtensor,
         serve=mock_serve,
         serve_axon=mock_serve_axon,
     )
+    mock_subtensor.substrate = MagicMock()
+    
 
     mock_wallet = MagicMock(
         spec=bittensor.wallet,
@@ -161,24 +164,25 @@ def test_stake_multiple():
             return_value=bittensor.Balance.from_tao(mock_amount.tao + 20.0)
         ),  # enough balance to stake
         get_neuron_for_pubkey_and_subnet=MagicMock(return_value=mock_neuron),
-        _do_stake=mock_do_stake,
     )
+    mock_subtensor.substrate = MagicMock()
 
-    with pytest.raises(ExitEarly):
-        bittensor.subtensor.add_stake_multiple(
-            mock_subtensor,
-            wallet=mock_wallet,
-            hotkey_ss58s=mock_hotkey_ss58s,
-            amounts=mock_amounts,
-        )
+    with patch("bittensor.extrinsics.staking._do_stake", mock_do_stake):
+        with pytest.raises(ExitEarly):
+            bittensor.subtensor.add_stake_multiple(
+                mock_subtensor,
+                wallet=mock_wallet,
+                hotkey_ss58s=mock_hotkey_ss58s,
+                amounts=mock_amounts,
+            )
 
-        mock_do_stake.assert_called_once()
-        # args, kwargs
-        _, kwargs = mock_do_stake.call_args
+            mock_do_stake.assert_called_once()
+            # args, kwargs
+            _, kwargs = mock_do_stake.call_args
 
-        assert kwargs["ammount"] == pytest.approx(
-            mock_amount.rao, rel=1e9
-        )  # delta of 1.0 TAO
+            assert kwargs["ammount"] == pytest.approx(
+                mock_amount.rao, rel=1e9
+            )  # delta of 1.0 TAO
 
 
 @pytest.mark.parametrize(
