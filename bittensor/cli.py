@@ -22,7 +22,7 @@ import bittensor
 from typing import List, Optional
 from .commands import *
 from injector import Injector, inject
-
+from bittensor.staging.btsession import NetworkModule
 
 # Create a console instance for CLI display.
 console = bittensor.__console__
@@ -303,13 +303,15 @@ class cli:
         """
         Executes the command from the configuration.
         """
+        injector = Injector(modules=[NetworkModule()])
+
         # Check for print-completion argument
         if self.config.print_completion:
             shell = self.config.print_completion
             print(shtab.complete(parser, shell))
             return
 
-        async with managed_network(injector: Injector, "wss://entrypoint-finney.opentensor.ai:443") as manager:
+        async with managed_network(injector, "wss://entrypoint-finney.opentensor.ai:443") as manager:
             # Check if command exists, if so, run the corresponding method.
             # If command doesn't exist, inform user and exit the program.
             command = self.config.command
