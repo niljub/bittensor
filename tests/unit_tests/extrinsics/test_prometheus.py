@@ -143,7 +143,9 @@ def test_prometheus_extrinsic_error_cases(
     neuron.is_null = True
     subtensor.get_neuron_for_pubkey_and_subnet.return_value = neuron
 
-    with patch("bittensor.extrinsics.prometheus._do_serve_prometheus", return_value=(True,)):
+    with patch(
+        "bittensor.extrinsics.prometheus._do_serve_prometheus", return_value=(True,)
+    ):
         # Act & Assert
         with pytest.raises(ValueError):
             prometheus_extrinsic(

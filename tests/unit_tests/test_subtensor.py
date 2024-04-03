@@ -79,7 +79,7 @@ def test_serve_axon_with_external_port_set():
 
     mock_serve = MagicMock(return_value=True)
 
-    mock_serve_axon = MagicMock(return_value=True) 
+    mock_serve_axon = MagicMock(return_value=True)
 
     mock_subtensor = MagicMock(
         spec=bittensor.subtensor,
@@ -87,7 +87,6 @@ def test_serve_axon_with_external_port_set():
         serve_axon=mock_serve_axon,
     )
     mock_subtensor.substrate = MagicMock()
-    
 
     mock_wallet = MagicMock(
         spec=bittensor.wallet,
