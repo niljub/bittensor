@@ -1,15 +1,41 @@
 #!/usr/bin/env python
 import asyncio
 from bittensor.staging.import_hooks import install_lazy_loader
-
-import sys
 import shtab
 from bittensor.cli import cli as btcli
 from bittensor.btlogging import logging as bt_logging
 from bittensor.staging.exceptions import RetriesExceededException, NetworkUnavailable, NetworkUnreachable
+from bittensor.staging.btsession import NetworkManager
+from aiohttp import ClientSession, WSMsgType
+from injector import inject, Injector, provider, Module
+import asyncio
+import sys
+import asyncio
+from aiohttp import ClientSession
+from asyncio import Queue
+from contextlib import asynccontextmanager
+from injector import inject, Injector, provider, Module, singleton
+from bittensor.staging.btsession import NetworkModule, NetworkManager, managed_network, ClientSessionModule
 
 
-async def sub_main():
+class WebSocketManager:
+    def __init__(self, session: ClientSession, url: str):
+        self.session = session
+        self.url = url
+        self.websocket = None
+
+    async def connect(self):
+        self.websocket = await self.session.ws_connect(self.url)
+
+    async def disconnect(self):
+        if self.websocket:
+            await self.websocket.close()
+            self.websocket = None
+
+
+async def main():
+    injector = Injector([NetworkModule()])
+
     # Create the parser with shtab support
     parser = btcli.__create_parser__()
     args, unknown = parser.parse_known_args()
@@ -18,18 +44,18 @@ async def sub_main():
         print(shtab.complete(parser, args.print_completion))
         return
 
-    try:
-        cli_instance = btcli(args=sys.argv[1:])
-        cli_instance.run()
-    except KeyboardInterrupt:
-        print('KeyboardInterrupt')
-    except RuntimeError as e:
-        bt_logging.error(f'RuntimeError: {e}')
-    except (NetworkUnreachable, NetworkUnavailable, RetriesExceededException) as e:
-        bt_logging.error(f'Network error. {e}')
+    network = btcli.create_config(sys.argv[1:]).subtensor.chain_endpoint
 
+    async with managed_network(injector, network):
+        try:
+            cli_instance = btcli()
+            cli_instance.run()
+        except KeyboardInterrupt:
+            print('KeyboardInterrupt')
+        except RuntimeError as e:
+            bt_logging.error(f'RuntimeError: {e}')
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     install_lazy_loader(
         [
             "websocket",
@@ -37,14 +63,7 @@ if __name__ == '__main__':
             "bittensor.subtensor.subtensor",
         ]
     )
-    import cProfile
-    import pstats
-    with cProfile.Profile() as pr:
-        asyncio.run(sub_main())
-
-    stats = pstats.Stats(pr)
-    stats.sort_stats(pstats.SortKey.TIME)
-    stats.print_stats()
+    asyncio.run(main(), debug=True)
 
 
 # The MIT License (MIT)
