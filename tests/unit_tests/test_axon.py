@@ -26,7 +26,6 @@ from starlette.requests import Request
 from unittest.mock import MagicMock
 from bittensor.axon import AxonMiddleware
 
-
 def test_attach():
     # Create a mock AxonServer instance
     server = bittensor.axon()
