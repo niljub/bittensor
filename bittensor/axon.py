@@ -42,6 +42,7 @@ from starlette.responses import Response
 from starlette.requests import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from typing import List, Optional, Tuple, Callable, Any, Dict
+from .types import AxonServeCallParams
 
 from bittensor.errors import (
     InvalidRequestNameError,

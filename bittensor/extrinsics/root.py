@@ -22,11 +22,52 @@ import time
 import torch
 import logging
 from rich.prompt import Confirm
-from typing import Union
+from typing import Union, Optional, Tuple
 import bittensor.utils.weight_utils as weight_utils
 from bittensor.btlogging.defines import BITTENSOR_LOGGER_NAME
+from retry import retry
+from .set_weights import _do_set_weights
 
 logger = logging.getLogger(BITTENSOR_LOGGER_NAME)
+
+
+def _do_root_register(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+) -> Tuple[bool, Optional[str]]:
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            # create extrinsic call
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="root_register",
+                call_params={"hotkey": wallet.hotkey.ss58_address},
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
+
+            # process if registration successful, try again if pow is still valid
+            response.process_events()
+            if not response.is_success:
+                return False, response.error_message
+            # Successful registration
+            else:
+                return True, None
+
+    return make_substrate_call_with_retry()
 
 
 def root_register_extrinsic(
@@ -69,7 +110,8 @@ def root_register_extrinsic(
             return False
 
     with bittensor.__console__.status(":satellite: Registering to root network..."):
-        success, err_msg = subtensor._do_root_register(
+        success, err_msg = _do_root_register(
+            subtensor=subtensor,
             wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
@@ -176,7 +218,8 @@ def set_root_weights_extrinsic(
             weight_uids, weight_vals = weight_utils.convert_weights_and_uids_for_emit(
                 netuids, weights
             )
-            success, error_message = subtensor._do_set_weights(
+            success, error_message = _do_set_weights(
+                subtensor=subtensor,
                 wallet=wallet,
                 netuid=0,
                 uids=weight_uids,

@@ -21,6 +21,59 @@ from rich.prompt import Confirm
 from time import sleep
 from typing import List, Union, Optional
 from bittensor.utils.balance import Balance
+from retry import retry
+from ..errors import StakeError
+
+
+def _do_unstake(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    hotkey_ss58: str,
+    amount: Balance,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+) -> bool:
+    """Sends an unstake extrinsic to the chain.
+
+    Args:
+        wallet (:func:`bittensor.wallet`): Wallet object that can sign the extrinsic.
+        hotkey_ss58 (str): Hotkey ``ss58`` address to unstake from.
+        amount (:func:`Balance`): Amount to unstake.
+        wait_for_inclusion (bool): If ``true``, waits for inclusion before returning.
+        wait_for_finalization (bool): If ``true``, waits for finalization before returning.
+    Returns:
+        success (bool): ``True`` if the extrinsic was successful.
+    Raises:
+        StakeError: If the extrinsic failed.
+    """
+
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="remove_stake",
+                call_params={"hotkey": hotkey_ss58, "amount_unstaked": amount.rao},
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
+
+            response.process_events()
+            if response.is_success:
+                return True
+            else:
+                raise StakeError(response.error_message)
+
+    return make_substrate_call_with_retry()
 
 
 def __do_remove_stake_single(
@@ -60,7 +113,8 @@ def __do_remove_stake_single(
     # Decrypt keys,
     wallet.coldkey
 
-    success = subtensor._do_unstake(
+    success = _do_unstake(
+        subtensor=subtensor,
         wallet=wallet,
         hotkey_ss58=hotkey_ss58,
         amount=amount,

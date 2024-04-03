@@ -23,8 +23,122 @@ from rich.prompt import Confirm
 from typing import Union, Optional
 from bittensor.utils.balance import Balance
 from bittensor.btlogging.defines import BITTENSOR_LOGGER_NAME
+from retry import retry
 
 logger = logging.getLogger(BITTENSOR_LOGGER_NAME)
+
+################
+## Extrinsics ##
+################
+
+
+def _do_nominate(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+) -> bool:
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="become_delegate",
+                call_params={"hotkey": wallet.hotkey.ss58_address},
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )  # sign with coldkey
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
+            response.process_events()
+            if response.is_success:
+                return True
+            else:
+                raise NominationError(response.error_message)
+
+    return make_substrate_call_with_retry()
+
+
+def _do_delegation(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    delegate_ss58: str,
+    amount: "Balance",
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+) -> bool:
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="add_stake",
+                call_params={"hotkey": delegate_ss58, "amount_staked": amount.rao},
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
+            response.process_events()
+            if response.is_success:
+                return True
+            else:
+                raise StakeError(response.error_message)
+
+    return make_substrate_call_with_retry()
+
+
+def _do_undelegation(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    delegate_ss58: str,
+    amount: "Balance",
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+) -> bool:
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="remove_stake",
+                call_params={
+                    "hotkey": delegate_ss58,
+                    "amount_unstaked": amount.rao,
+                },
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True
+            response.process_events()
+            if response.is_success:
+                return True
+            else:
+                raise StakeError(response.error_message)
+
+    return make_substrate_call_with_retry()
 
 
 def nominate_extrinsic(
@@ -57,7 +171,8 @@ def nominate_extrinsic(
         )
     ):
         try:
-            success = subtensor._do_nominate(
+            success = _do_nominate(
+                subtensor=subtensor,
                 wallet=wallet,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
@@ -170,7 +285,8 @@ def delegate_extrinsic(
                 subtensor.network
             )
         ):
-            staking_response: bool = subtensor._do_delegation(
+            staking_response: bool = _do_delegation(
+                subtensor=subtensor,
                 wallet=wallet,
                 delegate_ss58=delegate_ss58,
                 amount=staking_balance,
@@ -301,7 +417,8 @@ def undelegate_extrinsic(
                 subtensor.network
             )
         ):
-            staking_response: bool = subtensor._do_undelegation(
+            staking_response: bool = _do_undelegation(
+                subtensor=subtensor,
                 wallet=wallet,
                 delegate_ss58=delegate_ss58,
                 amount=unstaking_balance,

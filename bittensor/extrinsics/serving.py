@@ -20,6 +20,60 @@ import bittensor
 import bittensor.utils.networking as net
 from rich.prompt import Confirm
 from ..errors import MetadataError
+from ..types import AxonServeCallParams
+from typing import Optional, Tuple
+
+
+def _do_serve_axon(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    call_params: AxonServeCallParams,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+) -> Tuple[bool, Optional[str]]:
+    """
+    Internal method to submit a serve axon transaction to the Bittensor blockchain. This method
+    creates and submits a transaction, enabling a neuron's Axon to serve requests on the network.
+
+    Args:
+        wallet (bittensor.wallet): The wallet associated with the neuron.
+        call_params (AxonServeCallParams): Parameters required for the serve axon call.
+        wait_for_inclusion (bool, optional): Waits for the transaction to be included in a block.
+        wait_for_finalization (bool, optional): Waits for the transaction to be finalized on the blockchain.
+
+    Returns:
+        Tuple[bool, Optional[str]]: A tuple containing a success flag and an optional error message.
+
+    This function is crucial for initializing and announcing a neuron's Axon service on the network,
+    enhancing the decentralized computation capabilities of Bittensor.
+    """
+
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="serve_axon",
+                call_params=call_params,
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.hotkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            if wait_for_inclusion or wait_for_finalization:
+                response.process_events()
+                if response.is_success:
+                    return True, None
+                else:
+                    return False, response.error_message
+            else:
+                return True, None
+
+    return make_substrate_call_with_retry()
 
 
 def serve_extrinsic(
@@ -115,7 +169,8 @@ def serve_extrinsic(
     bittensor.logging.debug(
         f"Serving axon with: AxonInfo({wallet.hotkey.ss58_address},{ip}:{port}) -> {subtensor.network}:{netuid}"
     )
-    success, error_message = subtensor._do_serve_axon(
+    success, error_message = _do_serve_axon(
+        subtensor=subtensor,
         wallet=wallet,
         call_params=params,
         wait_for_finalization=wait_for_finalization,

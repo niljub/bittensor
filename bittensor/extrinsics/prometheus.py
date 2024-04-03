@@ -19,6 +19,56 @@ import bittensor
 
 import json
 import bittensor.utils.networking as net
+from typing import Optional, Tuple
+from ..types import PrometheusServeCallParams
+from retry import retry
+
+
+def _do_serve_prometheus(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    call_params: PrometheusServeCallParams,
+    wait_for_inclusion: bool = False,
+    wait_for_finalization: bool = True,
+) -> Tuple[bool, Optional[str]]:
+    """
+    Sends a serve prometheus extrinsic to the chain.
+    Args:
+        wallet (:func:`bittensor.wallet`): Wallet object.
+        call_params (:func:`PrometheusServeCallParams`): Prometheus serve call parameters.
+        wait_for_inclusion (bool): If ``true``, waits for inclusion.
+        wait_for_finalization (bool): If ``true``, waits for finalization.
+    Returns:
+        success (bool): ``True`` if serve prometheus was successful.
+        error (:func:`Optional[str]`): Error message if serve prometheus failed, ``None`` otherwise.
+    """
+
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function="serve_prometheus",
+                call_params=call_params,
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.hotkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            if wait_for_inclusion or wait_for_finalization:
+                response.process_events()
+                if response.is_success:
+                    return True, None
+                else:
+                    return False, response.error_message
+            else:
+                return True, None
+
+    return make_substrate_call_with_retry()
 
 
 def prometheus_extrinsic(
@@ -117,7 +167,8 @@ def prometheus_extrinsic(
             subtensor.network, netuid
         )
     ):
-        success, err = subtensor._do_serve_prometheus(
+        success, err = _do_serve_prometheus(
+            subtensor=subtensor,
             wallet=wallet,
             call_params=call_params,
             wait_for_finalization=wait_for_finalization,

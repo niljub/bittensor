@@ -19,9 +19,63 @@
 import bittensor
 
 from rich.prompt import Confirm
-from typing import Union
+from typing import Union, Tuple, Optional
 from ..utils.balance import Balance
 from ..utils import is_valid_bittensor_address_or_public_key
+from retry import retry
+
+
+def _do_transfer(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    dest: str,
+    transfer_balance: Balance,
+    wait_for_inclusion: bool = True,
+    wait_for_finalization: bool = False,
+) -> Tuple[bool, Optional[str], Optional[str]]:
+    """Sends a transfer extrinsic to the chain.
+
+    Args:
+        wallet (:func:`bittensor.wallet`): Wallet object.
+        dest (str): Destination public key address.
+        transfer_balance (:func:`Balance`): Amount to transfer.
+        wait_for_inclusion (bool): If ``true``, waits for inclusion.
+        wait_for_finalization (bool): If ``true``, waits for finalization.
+    Returns:
+        success (bool): ``True`` if transfer was successful.
+        block_hash (str): Block hash of the transfer. On success and if wait_for_ finalization/inclusion is ``True``.
+        error (str): Error message if transfer failed.
+    """
+
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    def make_substrate_call_with_retry():
+        with subtensor.substrate as substrate:
+            call = substrate.compose_call(
+                call_module="Balances",
+                call_function="transfer",
+                call_params={"dest": dest, "value": transfer_balance.rao},
+            )
+            extrinsic = substrate.create_signed_extrinsic(
+                call=call, keypair=wallet.coldkey
+            )
+            response = substrate.submit_extrinsic(
+                extrinsic,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True, None, None
+
+            # Otherwise continue with finalization.
+            response.process_events()
+            if response.is_success:
+                block_hash = response.block_hash
+                return True, block_hash, None
+            else:
+                return False, None, response.error_message
+
+    return make_substrate_call_with_retry()
 
 
 def transfer_extrinsic(
@@ -111,10 +165,11 @@ def transfer_extrinsic(
             return False
 
     with bittensor.__console__.status(":satellite: Transferring..."):
-        success, block_hash, err_msg = subtensor._do_transfer(
-            wallet,
-            dest,
-            transfer_balance,
+        success, block_hash, err_msg = _do_transfer(
+            subtensor=subtensor,
+            wallet=wallet,
+            dest=dest,
+            transfer_balance=transfer_balance,
             wait_for_finalization=wait_for_finalization,
             wait_for_inclusion=wait_for_inclusion,
         )
