@@ -2157,76 +2157,66 @@ class subtensor:
     """ Queries subtensor named storage with params and block. """
 
     def query_subtensor(
-        self,
-        name: str,
-        block: Optional[int] = None,
-        params: Optional[List[object]] = [],
+            self,
+            name: str,
+            block: Optional[int] = None,
+            params: Optional[List[Any]] = None,
     ) -> Optional[T]:
         """
-        Queries named storage from the Subtensor module on the Bittensor blockchain. This function is used to retrieve
-        specific data or parameters from the blockchain, such as stake, rank, or other neuron-specific attributes.
+        Fetches data from a specified storage function in the Subtensor module on the Bittensor blockchain.
 
         Args:
-            name (str): The name of the storage function to query.
-            block (Optional[int], optional): The blockchain block number at which to perform the query.
-            params (Optional[List[object]], optional): A list of parameters to pass to the query function.
+            name: The name of the storage function to query.
+            block: Optional blockchain block number for the query.
+            params: Optional list of parameters for the query function.
 
         Returns:
-            Optional[object]: An object containing the requested data if found, ``None`` otherwise.
-
-        This query function is essential for accessing detailed information about the network and its neurons,
-        providing valuable insights into the state and dynamics of the Bittensor ecosystem.
+            The requested data if available; None otherwise.
         """
-
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
+        try:
             return self.substrate.query(
                 module="SubtensorModule",
                 storage_function=name,
-                params=params,
-                block_hash=(
-                    None if block is None else self.substrate.get_block_hash(block)
-                ),
+                params=params or [],
+                block_hash=None if block is None else self.substrate.get_block_hash(block)
             )
-
-        return make_substrate_call_with_retry()
+        except Exception as error:
+            raise error
 
     """ Queries subtensor map storage with params and block. """
 
     def query_map_subtensor(
-        self,
-        name: str,
-        block: Optional[int] = None,
-        params: Optional[List[object]] = [],
+            self,
+            name: str,
+            block: Optional[int] = None,
+            params: Optional[List[Any]] = None,
     ) -> QueryMapResult:
         """
-        Queries map storage from the Subtensor module on the Bittensor blockchain. This function is designed to
-        retrieve a map-like data structure, which can include various neuron-specific details or network-wide attributes.
+        Fetches map-like data from a specified storage function in the Subtensor
+        module on the Bittensor blockchain, which can include various neuron-specific
+        details or network-wide attributes.
+
+        This function is particularly useful for analyzing and understanding complex
+        network structures and relationships within the Bittensor ecosystem, such as
+        inter-neuronal connections and stake distributions.
 
         Args:
-            name (str): The name of the map storage function to query.
-            block (Optional[int], optional): The blockchain block number at which to perform the query.
-            params (Optional[List[object]], optional): A list of parameters to pass to the query function.
+            name: The storage function name within the Subtensor module.
+            block: Optional block number at which the query should be executed.
+            params: Optional list of parameters for the storage function query.
 
         Returns:
-            QueryMapResult: An object containing the map-like data structure, or ``None`` if not found.
-
-        This function is particularly useful for analyzing and understanding complex network structures and
-        relationships within the Bittensor ecosystem, such as inter-neuronal connections and stake distributions.
+            A QueryMapResult object containing the retrieved map-like data structure.
         """
-
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-                return self.substrate.query_map(
-                    module="SubtensorModule",
-                    storage_function=name,
-                    params=params,
-                    block_hash=(
-                        None if block is None else self.substrate.get_block_hash(block)
-                    ),
-                )
-
-        return make_substrate_call_with_retry()
+        try:
+            return self.substrate.query_map(
+                module="SubtensorModule",
+                storage_function=name,
+                params=params or [],
+                block_hash=None if block is None else self.substrate.get_block_hash(block)
+            )
+        except Exception as error:
+            raise error
 
     def query_constant(
         self, module_name: str, constant_name: str, block: Optional[int] = None
@@ -2242,34 +2232,32 @@ class subtensor:
             block (Optional[int], optional): The blockchain block number at which to query the constant.
 
         Returns:
-            Optional[object]: The value of the constant if found, ``None`` otherwise.
+            The value of the constant if found; None otherwise.
 
         Constants queried through this function can include critical network parameters such as inflation rates,
         consensus rules, or validation thresholds, providing a deeper understanding of the Bittensor network's
         operational parameters.
         """
 
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
+        try:
             return self.substrate.get_constant(
                 module_name=module_name,
                 constant_name=constant_name,
-                block_hash=(
-                    None if block is None else self.substrate.get_block_hash(block)
-                ),
+                block_hash=None if block is None else self.substrate.get_block_hash(block)
             )
-
-        return make_substrate_call_with_retry()
+        except Exception as error:
+            raise error
 
     """ Queries any module storage with params and block. """
 
     def query_module(
-        self,
-        module: str,
-        name: str,
-        block: Optional[int] = None,
-        params: Optional[List[object]] = [],
-    ) -> Optional[object]:
+            self,
+            module: str,
+            name: str,
+            block: Optional[int] = None,
+            # fixed bug: mutable value used as default argument
+            params: Optional[List[Any]] = None,
+    ) -> Optional[Any]:
         """
         Queries any module storage on the Bittensor blockchain with the specified parameters and block number.
         This function is a generic query interface that allows for flexible and diverse data retrieval from
@@ -2288,57 +2276,48 @@ class subtensor:
         parts of the Bittensor blockchain, enhancing the understanding and analysis of the network's state and dynamics.
         """
 
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
+        try:
             return self.substrate.query(
                 module=module,
                 storage_function=name,
-                params=params,
-                block_hash=(
-                    None if block is None else self.substrate.get_block_hash(block)
-                ),
+                # fix for mutable bug above
+                params=params or [],
+                block_hash=None if block is None else self.substrate.get_block_hash(block)
             )
-
-        return make_substrate_call_with_retry()
+        except Exception as error:
+            raise error
 
     """ Queries any module map storage with params and block. """
 
-    def query_map(
-        self,
-        module: str,
-        name: str,
-        block: Optional[int] = None,
-        params: Optional[List[object]] = [],
-    ) -> Optional[object]:
+    def query_map(self, module: str, name: str, block: Optional[int] = None, params: Optional[List[Any]] = None) -> \
+    Optional[Any]:
         """
-        Queries map storage from any module on the Bittensor blockchain. This function retrieves data structures
-        that represent key-value mappings, essential for accessing complex and structured data within the blockchain modules.
+        Queries map storage from any module on the Bittensor blockchain.
+
+        This method retrieves data structures that represent key-value mappings, essential for accessing
+        complex and structured data within the blockchain modules.
 
         Args:
-            module (str): The name of the module from which to query the map storage.
-            name (str): The specific storage function within the module to query.
-            block (Optional[int], optional): The blockchain block number at which to perform the query.
-            params (Optional[List[object]], optional): Parameters to be passed to the query.
+            module: The name of the module from which to query the map storage.
+            name: The specific storage function within the module to query.
+            block: The blockchain block number at which to perform the query. Defaults to None.
+            params: Parameters to be passed to the query. Defaults to None.
 
         Returns:
-            Optional[object]: A data structure representing the map storage if found, ``None`` otherwise.
-
-        This function is particularly useful for retrieving detailed and structured data from various blockchain
-        modules, offering insights into the network's state and the relationships between its different components.
+            A data structure representing the map storage if found, None otherwise.
         """
 
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            return self.substrate.query_map(
-                module=module,
-                storage_function=name,
-                params=params,
-                block_hash=(
-                    None if block is None else self.substrate.get_block_hash(block)
-                ),
-            )
-
-        return make_substrate_call_with_retry()
+        block_hash = None if block is None else self.substrate.get_block_hash(block)
+        try:
+            return self.substrate.query_map(module=module, storage_function=name, params=params, block_hash=block_hash)
+        except Exception as e:
+            for _ in range(2):  # Try two more times
+                try:
+                    return self.substrate.query_map(module=module, storage_function=name, params=params,
+                                                    block_hash=block_hash)
+                except Exception:
+                    continue
+            raise e
 
     def state_call(
         self,
@@ -3314,75 +3293,53 @@ class subtensor:
             return 0
 
     def get_delegate_by_hotkey(
-        self, hotkey_ss58: str, block: Optional[int] = None
+            self, hotkey_ss58: str, block: Optional[int] = None
     ) -> Optional[DelegateInfo]:
         """
-        Retrieves detailed information about a delegate neuron based on its hotkey. This function provides
-        a comprehensive view of the delegate's status, including its stakes, nominators, and reward distribution.
+        Retrieves detailed information about a delegate neuron based on its hotkey.
 
         Args:
-            hotkey_ss58 (str): The ``SS58`` address of the delegate's hotkey.
-            block (Optional[int], optional): The blockchain block number for the query.
+            hotkey_ss58: The ``SS58`` address of the delegate's hotkey.
+            block: The blockchain block number for the query.
 
         Returns:
-            Optional[DelegateInfo]: Detailed information about the delegate neuron, ``None`` if not found.
-
-        This function is essential for understanding the roles and influence of delegate neurons within
-        the Bittensor network's consensus and governance structures.
+            Detailed information about the delegate neuron, ``None`` if not found.
         """
-
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry(encoded_hotkey: List[int]):
-
-            block_hash = None if block == None else self.substrate.get_block_hash(block)
-            params = [encoded_hotkey]
-            if block_hash:
-                params = params + [block_hash]
-            return self.substrate.rpc_request(
-                method="delegateInfo_getDelegate",  # custom rpc method
-                params=params,
-            )
-
+        block_hash = None if block is None else self.substrate.get_block_hash(block)
         encoded_hotkey = ss58_to_vec_u8(hotkey_ss58)
-        json_body = make_substrate_call_with_retry(encoded_hotkey)
-        result = json_body["result"]
+        params = [encoded_hotkey, block_hash] if block_hash else [encoded_hotkey]
 
-        if result in (None, []):
+        json_body = self.substrate.rpc_request(
+            method="delegateInfo_getDelegate",  # custom rpc method
+            params=params,
+        )
+        result = json_body.get("result")
+
+        if not result:
             return None
 
         return DelegateInfo.from_vec_u8(result)
 
     def get_delegates(self, block: Optional[int] = None) -> List[DelegateInfo]:
         """
-        Retrieves a list of all delegate neurons within the Bittensor network. This function provides an
-        overview of the neurons that are actively involved in the network's delegation system.
+        Retrieves a list of all delegate neurons within the Bittensor network.
 
         Args:
-            block (Optional[int], optional): The blockchain block number for the query.
+            block: The blockchain block number for the query.
 
         Returns:
-            List[DelegateInfo]: A list of DelegateInfo objects detailing each delegate's characteristics.
-
-        Analyzing the delegate population offers insights into the network's governance dynamics and the
-        distribution of trust and responsibility among participating neurons.
+            A list of DelegateInfo objects detailing each delegate's characteristics.
         """
+        block_hash = None if block is None else self.substrate.get_block_hash(block)
+        params = [block_hash] if block_hash else []
 
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
+        json_body = self.substrate.rpc_request(
+            method="delegateInfo_getDelegates",  # custom rpc method
+            params=params,
+        )
+        result = json_body.get("result", [])
 
-            block_hash = None if block is None else self.substrate.get_block_hash(block)
-            params = []
-            if block_hash:
-                params = params + [block_hash]
-            return self.substrate.rpc_request(
-                method="delegateInfo_getDelegates",  # custom rpc method
-                params=params,
-            )
-
-        json_body = make_substrate_call_with_retry()
-        result = json_body["result"]
-
-        if result in (None, []):
+        if not result:
             return []
 
         return DelegateInfo.list_from_vec_u8(result)
@@ -4127,28 +4084,37 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    from typing import Any
+
     def _do_nominate(
-        self,
-        wallet: "bittensor.wallet",
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
+            self,
+            wallet: "bittensor.wallet",
+            wait_for_inclusion: bool = True,
+            wait_for_finalization: bool = False,
     ) -> bool:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
+        """
+        Attempts to nominate a delegate on the Bittensor network using the provided wallet.
+
+        Args:
+            wallet: The wallet containing the hotkey and coldkey for signing transactions.
+            wait_for_inclusion: If True, waits for the transaction to be included in a block.
+            wait_for_finalization: If True, waits for the transaction to be finalized.
+
+        Returns:
+            A boolean indicating the success of the nomination operation.
+        """
+        try:
             call = self.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="become_delegate",
                 call_params={"hotkey": wallet.hotkey.ss58_address},
             )
-            extrinsic = self.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )  # sign with coldkey
+            extrinsic = self.substrate.create_signed_extrinsic(call=call, keypair=wallet.coldkey)
             response = self.substrate.submit_extrinsic(
                 extrinsic,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
             )
-            # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
                 return True
             response.process_events()
@@ -4156,101 +4122,78 @@ class subtensor:
                 return True
             else:
                 raise NominationError(response.error_message)
-
-        return make_substrate_call_with_retry()
+        except Exception as error:
+            raise error
 
     ################
     #### Legacy ####
     ################
-
     def get_balance(self, address: str, block: Optional[int] = None) -> Balance:
         """
-        Retrieves the token balance of a specific address within the Bittensor network. This function queries
-        the blockchain to determine the amount of Tao held by a given account.
+        Retrieves the token balance of a specific address within the Bittensor network.
 
         Args:
-            address (str): The Substrate address in ``ss58`` format.
-            block (int, optional): The blockchain block number at which to perform the query.
+            address: The Substrate address in ``ss58`` format.
+            block: The blockchain block number at which to perform the query.
 
         Returns:
-            Balance: The account balance at the specified block, represented as a Balance object.
-
-        This function is important for monitoring account holdings and managing financial transactions
-        within the Bittensor ecosystem. It helps in assessing the economic status and capacity of network participants.
+            The account balance at the specified block, represented as a Balance object.
         """
+        block_hash = None if block is None else self.substrate.get_block_hash(block)
+
         try:
-
-            @retry(delay=2, tries=3, backoff=2, max_delay=4)
-            def make_substrate_call_with_retry():
-
-                return self.substrate.query(
-                    module="System",
-                    storage_function="Account",
-                    params=[address],
-                    block_hash=(
-                        None if block is None else self.substrate.get_block_hash(block)
-                    ),
-                )
-
-            result = make_substrate_call_with_retry()
+            result = self.substrate.query(
+                module="System",
+                storage_function="Account",
+                params=[address],
+                block_hash=block_hash,
+            )
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
             bittensor.logging.error(
                 "Your wallet it legacy formatted, you need to run btcli stake --ammount 0 to reformat it."
             )
             return Balance(1000)
+
         return Balance(result.value["data"]["free"])
 
     def get_current_block(self) -> int:
         """
-        Returns the current block number on the Bittensor blockchain. This function provides the latest block
-        number, indicating the most recent state of the blockchain.
+        Retrieves the current block number from the Bittensor blockchain.
+
+        This function fetches the latest block number, reflecting the most
+        recent blockchain state. It's crucial for querying real-time data
+        and executing time-sensitive operations.
 
         Returns:
-            int: The current chain block number.
-
-        Knowing the current block number is essential for querying real-time data and performing time-sensitive
-        operations on the blockchain. It serves as a reference point for network activities and data synchronization.
+            The current chain block number as an integer.
         """
-
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-
+        try:
             return self.substrate.get_block_number(None)
-
-        return make_substrate_call_with_retry()
+        except Exception as error:
+            raise error
 
     def get_balances(self, block: Optional[int] = None) -> Dict[str, Balance]:
         """
-        Retrieves the token balances of all accounts within the Bittensor network as of a specific blockchain block.
-        This function provides a comprehensive view of the token distribution among different accounts.
+        Fetches the token balances for all accounts on the Bittensor network as of a given blockchain block.
 
         Args:
-            block (int, optional): The blockchain block number at which to perform the query.
+            block: Optional block number for which the balances are queried.
 
         Returns:
-            Dict[str, Balance]: A dictionary mapping each account's ``ss58`` address to its balance.
-
-        This function is valuable for analyzing the overall economic landscape of the Bittensor network,
-        including the distribution of financial resources and the financial status of network participants.
+            A dictionary mapping account `ss58` addresses to their respective balances.
         """
-
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-
-            return self.substrate.query_map(
+        try:
+            result = self.substrate.query_map(
                 module="System",
                 storage_function="Account",
-                block_hash=(
-                    None if block is None else self.substrate.get_block_hash(block)
-                ),
+                block_hash=None if block is None else self.substrate.get_block_hash(block)
             )
-
-        result = make_substrate_call_with_retry()
-        return_dict = {}
-        for r in result:
-            bal = Balance(int(r[1]["data"]["free"].value))
-            return_dict[r[0].value] = bal
-        return return_dict
+            return {
+                r[0].value: Balance(int(r[1]["data"]["free"].value))
+                for r in result
+            }
+        except Exception as error:
+            raise error
 
     @staticmethod
     def _null_neuron() -> NeuronInfo:
