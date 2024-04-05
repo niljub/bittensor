@@ -25,11 +25,10 @@ import argparse
 import bittensor
 import scalecodec
 
-from retry import retry
 from typing import List, Dict, Union, Optional, Tuple, TypedDict, Any, TypeVar
 from substrateinterface.base import QueryMapResult, SubstrateInterface, ExtrinsicReceipt
 from substrateinterface.exceptions import SubstrateRequestException
-from scalecodec.base import RuntimeConfiguration
+from scalecodec.base import ScaleBytes, RuntimeConfiguration, ScaleType
 from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.types import GenericCall
 
@@ -2226,7 +2225,7 @@ class subtensor:
 
     def query_constant(
         self, module_name: str, constant_name: str, block: Optional[int] = None
-    ) -> Optional[object]:
+    ) -> Optional[ScaleType]:
         """
         Retrieves a constant from the specified module on the Bittensor blockchain. This function is used to
         access fixed parameters or values defined within the blockchain's modules, which are essential for
