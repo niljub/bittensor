@@ -387,7 +387,7 @@ class subtensor:
         # Attempt to connect to chosen endpoint. Fallback to finney if local unavailable.
         try:
             # Set up params.
-            self.substrate = self.substrateInterface(
+            self.substrate = SubstrateInterface(
                 ss58_format=bittensor.__ss58_format__,
                 use_remote_preset=True,
                 url=self.chain_endpoint,
@@ -481,20 +481,26 @@ class subtensor:
             prompt: bool = False,
     ) -> bool:
         """
-        Becomes a delegate for the hotkey associated with the given wallet. This method is used to nominate
-        a neuron (identified by the hotkey in the wallet) as a delegate on the Bittensor network, allowing it
-        to participate in consensus and validation processes.
+        Delegates a specified amount to a neuron, identified by delegate_ss58, enabling it to participate in consensus
+        and validation on the Bittensor network.
+
+        This method allows a user to nominate their neuron as a delegate, leveraging the associated hotkey in the given
+        wallet. The action facilitates the neuron's involvement in the network's decentralized governance by participating
+        in validation and consensus mechanisms.
 
         Args:
             wallet (bittensor.wallet): The wallet containing the hotkey to be nominated.
-            wait_for_finalization (bool, optional): If ``True``, waits until the transaction is finalized on the blockchain.
-            wait_for_inclusion (bool, optional): If ``True``, waits until the transaction is included in a block.
+            delegate_ss58 (Optional[str]): The SS58 address of the delegate neuron. If None, uses the wallet's default neuron.
+            amount (Optional[Union[Balance, float]]): The amount of tokens to delegate. If None, a default amount is used.
+            wait_for_inclusion (bool, optional): If True, waits until the transaction is included in a block before returning.
+            wait_for_finalization (bool, optional): If True, waits until the transaction is finalized on the blockchain before returning.
+            prompt (bool, optional): If True, prompts the user for confirmation before proceeding.
 
         Returns:
-            bool: ``True`` if the nomination process is successful, False otherwise.
+            bool: True if the delegation process is successful, False otherwise.
 
-        This function is a key part of the decentralized governance mechanism of Bittensor, allowing for the
-        dynamic selection and participation of validators in the network's consensus process.
+        This function plays a crucial role in the decentralized governance of the Bittensor network, allowing for dynamic
+        validator participation and consensus.
         """
         return delegate_extrinsic(
             subtensor=self,
