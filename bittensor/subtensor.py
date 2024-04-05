@@ -2260,8 +2260,7 @@ class subtensor:
             module: str,
             name: str,
             block: Optional[int] = None,
-            # fixed bug: mutable value used as default argument
-            params: Optional[List[Any]] = None,
+            params: List[Any] = [],
     ) -> Optional[Any]:
         """
         Queries any module storage on the Bittensor blockchain with the specified parameters and block number.
@@ -2285,8 +2284,7 @@ class subtensor:
             return self.substrate.query(
                 module=module,
                 storage_function=name,
-                # fix for mutable bug above
-                params=params or [],
+                params=params,
                 block_hash=None if block is None else self.substrate.get_block_hash(block)
             )
         except Exception as error:
