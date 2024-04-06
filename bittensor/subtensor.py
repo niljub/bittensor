@@ -86,6 +86,8 @@ from .utils import U16_NORMALIZED_FLOAT, ss58_to_vec_u8, U64_NORMALIZED_FLOAT
 from .utils.balance import Balance
 from .utils.registration import POWSolution
 
+from tests.helpers.record_replay import RRController as rrc
+
 logger = logging.getLogger(BITTENSOR_LOGGER_NAME)
 
 KEY_NONCE: Dict[str, int] = {}
@@ -96,6 +98,9 @@ T = TypeVar("T")
 class ParamWithTypes(TypedDict):
     name: str  # Name of the parameter.
     type: str  # ScaleType string of the parameter.
+
+
+
 
 
 class subtensor:
