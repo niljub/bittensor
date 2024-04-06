@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from functools import wraps
 from typing import Any, Callable, Type
+from pathlib import Path
 
 
 class RRController:
@@ -56,8 +57,9 @@ class RRController:
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
             func_identifier = f"{class_name + '.' if class_name else ''}{func.__name__}"
             filename = f"record_{func_identifier}_{timestamp}.json"
-            with open(filename, 'w') as f:
-                json.dump(record, f, default=str)
+            file_path = Path(__file__).parent.joinpath("recordings").joinpath(filename)
+            with open(file_path, 'w') as f:
+                json.dump(record, f, default=str, indent=4)
 
             if not success:
                 raise
