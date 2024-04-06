@@ -715,6 +715,7 @@ class subtensor:
 
         return success, message
 
+    @rrc.record
     def _do_set_weights(
         self,
         wallet: "bittensor.wallet",
@@ -934,6 +935,7 @@ class subtensor:
             prompt=prompt,
         )
 
+    @rrc.record
     def _do_pow_register(
         self,
         netuid: int,
@@ -994,6 +996,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def _do_burned_register(
         self,
         netuid: int,
@@ -1036,6 +1039,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def _do_swap_hotkey(
         self,
         wallet: "bittensor.wallet",
@@ -1166,6 +1170,7 @@ class subtensor:
         fee = Balance.from_rao(payment_info["partialFee"])
         return fee
 
+    @rrc.record
     def _do_transfer(
         self,
         wallet: "bittensor.wallet",
@@ -1399,6 +1404,7 @@ class subtensor:
             self, netuid, axon, wait_for_inclusion, wait_for_finalization
         )
 
+    @rrc.record
     def _do_serve_axon(
         self,
         wallet: "bittensor.wallet",
@@ -1467,6 +1473,7 @@ class subtensor:
             wait_for_finalization=wait_for_finalization,
         )
 
+    @rrc.record
     def _do_serve_prometheus(
         self,
         wallet: "bittensor.wallet",
@@ -1513,6 +1520,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def _do_associate_ips(
         self,
         wallet: "bittensor.wallet",
@@ -1644,6 +1652,7 @@ class subtensor:
             prompt,
         )
 
+    @rrc.record
     def _do_stake(
         self,
         wallet: "bittensor.wallet",
@@ -1771,6 +1780,7 @@ class subtensor:
             prompt,
         )
 
+    @rrc.record
     def _do_unstake(
         self,
         wallet: "bittensor.wallet",
@@ -2106,6 +2116,7 @@ class subtensor:
             prompt=prompt,
         )
 
+    @rrc.record
     def _do_root_register(
         self,
         wallet: "bittensor.wallet",
@@ -2189,7 +2200,7 @@ class subtensor:
     ########################
 
     """ Queries subtensor registry named storage with params and block. """
-
+    @rrc.record
     def query_identity(
         self,
         key: str,
@@ -2231,6 +2242,7 @@ class subtensor:
             identity_info.value["info"]
         )
 
+    @rrc.record
     def update_identity(
         self,
         wallet: "bittensor.wallet",
@@ -2312,7 +2324,7 @@ class subtensor:
     ########################
 
     """ Queries subtensor named storage with params and block. """
-
+    @rrc.record
     def query_subtensor(
         self,
         name: str,
@@ -2350,7 +2362,7 @@ class subtensor:
         return make_substrate_call_with_retry()
 
     """ Queries subtensor map storage with params and block. """
-
+    @rrc.record
     def query_map_subtensor(
         self,
         name: str,
@@ -2387,6 +2399,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def query_constant(
         self, module_name: str, constant_name: str, block: Optional[int] = None
     ) -> Optional[object]:
@@ -2423,6 +2436,7 @@ class subtensor:
 
     """ Queries any module storage with params and block. """
 
+    @rrc.record
     def query_module(
         self,
         module: str,
@@ -2502,6 +2516,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def state_call(
         self,
         method: str,
@@ -3302,6 +3317,7 @@ class subtensor:
         else:
             return []
 
+    @rrc.record
     def get_all_subnets_info(self, block: Optional[int] = None) -> List[SubnetInfo]:
         """
         Retrieves detailed information about all subnets within the Bittensor network. This function
@@ -3337,6 +3353,7 @@ class subtensor:
 
         return SubnetInfo.list_from_vec_u8(result)
 
+    @rrc.record
     def get_subnet_info(
         self, netuid: int, block: Optional[int] = None
     ) -> Optional[SubnetInfo]:
@@ -3498,6 +3515,7 @@ class subtensor:
         else:
             return 0
 
+    @rrc.record
     def get_delegate_by_hotkey(
         self, hotkey_ss58: str, block: Optional[int] = None
     ) -> Optional[DelegateInfo]:
@@ -3537,6 +3555,7 @@ class subtensor:
 
         return DelegateInfo.from_vec_u8(result)
 
+    @rrc.record
     def get_delegates(self, block: Optional[int] = None) -> List[DelegateInfo]:
         """
         Retrieves a list of all delegate neurons within the Bittensor network. This function provides an
@@ -3572,6 +3591,7 @@ class subtensor:
 
         return DelegateInfo.list_from_vec_u8(result)
 
+    @rrc.record
     def get_delegated(
         self, coldkey_ss58: str, block: Optional[int] = None
     ) -> List[Tuple[DelegateInfo, Balance]]:
@@ -3916,6 +3936,7 @@ class subtensor:
             wallet.hotkey.ss58_address, netuid=netuid, block=block
         )
 
+    @rrc.record
     def neuron_for_uid(
         self, uid: Optional[int], netuid: int, block: Optional[int] = None
     ) -> Optional[NeuronInfo]:
@@ -4240,7 +4261,7 @@ class subtensor:
     ################
     ## Extrinsics ##
     ################
-
+    @rrc.record
     def _do_delegation(
         self,
         wallet: "bittensor.wallet",
@@ -4276,6 +4297,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def _do_undelegation(
         self,
         wallet: "bittensor.wallet",
@@ -4314,6 +4336,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def _do_nominate(
         self,
         wallet: "bittensor.wallet",
@@ -4350,7 +4373,7 @@ class subtensor:
     ################
     #### Legacy ####
     ################
-
+    @rrc.record
     def get_balance(self, address: str, block: Optional[int] = None) -> Balance:
         """
         Retrieves the token balance of a specific address within the Bittensor network. This function queries
@@ -4388,6 +4411,7 @@ class subtensor:
             return Balance(1000)
         return Balance(result.value["data"]["free"])
 
+    @rrc.record
     def get_current_block(self) -> int:
         """
         Returns the current block number on the Bittensor blockchain. This function provides the latest block
@@ -4407,6 +4431,7 @@ class subtensor:
 
         return make_substrate_call_with_retry()
 
+    @rrc.record
     def get_balances(self, block: Optional[int] = None) -> Dict[str, Balance]:
         """
         Retrieves the token balances of all accounts within the Bittensor network as of a specific blockchain block.
