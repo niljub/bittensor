@@ -2311,48 +2311,26 @@ class subtensor:
         """
 
         block_hash = None if block is None else self.substrate.get_block_hash(block)
-        try:
-            return self.substrate.query_map(module=module, storage_function=name, params=params, block_hash=block_hash)
-        except Exception as e:
-            for _ in range(2):  # Try two more times
-                try:
-                    return self.substrate.query_map(module=module, storage_function=name, params=params,
-                                                    block_hash=block_hash)
-                except Exception:
-                    continue
-            raise e
+        return self.substrate.query_map(module=module, storage_function=name, params=params, block_hash=block_hash)
 
-    def state_call(
-        self,
-        method: str,
-        data: str,
-        block: Optional[int] = None,
-    ) -> Optional[object]:
+    def state_call(self, method: str, data: str, block: Optional[int] = None) -> Optional[object]:
         """
         Makes a state call to the Bittensor blockchain, allowing for direct queries of the blockchain's state.
         This function is typically used for advanced queries that require specific method calls and data inputs.
 
         Args:
-            method (str): The method name for the state call.
-            data (str): The data to be passed to the method.
-            block (Optional[int], optional): The blockchain block number at which to perform the state call.
+            method: The method name for the state call.
+            data: The data to be passed to the method.
+            block: The blockchain block number at which to perform the state call, optional.
 
         Returns:
-            Optional[object]: The result of the state call if successful, ``None`` otherwise.
+            The result of the state call if successful, `None` otherwise.
 
-        The state call function provides a more direct and flexible way of querying blockchain data,
-        useful for specific use cases where standard queries are insufficient.
+        This method queries blockchain data directly, useful for specific use cases where standard queries are insufficient.
         """
-
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            block_hash = None if block is None else self.substrate.get_block_hash(block)
-            params = [method, data]
-            if block_hash:
-                params = params + [block_hash]
-            return self.substrate.rpc_request(method="state_call", params=params)
-
-        return make_substrate_call_with_retry()
+        block_hash = self.substrate.get_block_hash(block) if block is not None else None
+        params = [method, data, block_hash] if block_hash else [method, data]
+        return self.substrate.rpc_request(method="state_call", params=params)
 
     def query_runtime_api(
         self,
@@ -3348,40 +3326,30 @@ class subtensor:
         return DelegateInfo.list_from_vec_u8(result)
 
     def get_delegated(
-        self, coldkey_ss58: str, block: Optional[int] = None
+            self,
+            coldkey_ss58: str,
+            block: Optional[int] = None
     ) -> List[Tuple[DelegateInfo, Balance]]:
         """
-        Retrieves a list of delegates and their associated stakes for a given coldkey. This function
-        identifies the delegates that a specific account has staked tokens on.
+        Retrieves a list of delegates and their associated stakes for a given coldkey by making an RPC call to the substrate node.
 
         Args:
-            coldkey_ss58 (str): The ``SS58`` address of the account's coldkey.
-            block (Optional[int], optional): The blockchain block number for the query.
+            coldkey_ss58 (str): The SS58 address of the account's coldkey.
+            block (Optional[int]): The blockchain block number for the query, defaults to None.
 
         Returns:
             List[Tuple[DelegateInfo, Balance]]: A list of tuples, each containing a delegate's information and staked amount.
-
-        This function is important for account holders to understand their stake allocations and their
-        involvement in the network's delegation and consensus mechanisms.
         """
+        block_hash = self.substrate.get_block_hash(block) if block is not None else None
+        params = [ss58_to_vec_u8(coldkey_ss58), block_hash] if block_hash else [ss58_to_vec_u8(coldkey_ss58)]
 
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry(encoded_coldkey: List[int]):
+        json_body = self.substrate.rpc_request(
+            method="delegateInfo_getDelegated",
+            params=params,
+        )
+        result = json_body.get("result", [])
 
-            block_hash = None if block == None else self.substrate.get_block_hash(block)
-            params = [encoded_coldkey]
-            if block_hash:
-                params = params + [block_hash]
-            return self.substrate.rpc_request(
-                method="delegateInfo_getDelegated",  # custom rpc method
-                params=params,
-            )
-
-        encoded_coldkey = ss58_to_vec_u8(coldkey_ss58)
-        json_body = make_substrate_call_with_retry(encoded_coldkey)
-        result = json_body["result"]
-
-        if result in (None, []):
+        if not result:
             return []
 
         return DelegateInfo.delegated_list_from_vec_u8(result)
@@ -3692,42 +3660,35 @@ class subtensor:
         )
 
     def neuron_for_uid(
-        self, uid: Optional[int], netuid: int, block: Optional[int] = None
+            self,
+            uid: Optional[int],
+            netuid: int,
+            block: Optional[int] = None
     ) -> Optional[NeuronInfo]:
         """
-        Retrieves detailed information about a specific neuron identified by its unique identifier (UID)
-        within a specified subnet (netuid) of the Bittensor network. This function provides a comprehensive
-        view of a neuron's attributes, including its stake, rank, and operational status.
+        Retrieves detailed information about a specific neuron identified by its UID within a subnet.
 
         Args:
-            uid (int): The unique identifier of the neuron.
+            uid (Optional[int]): The unique identifier of the neuron.
             netuid (int): The unique identifier of the subnet.
-            block (Optional[int], optional): The blockchain block number for the query.
+            block (Optional[int]): The blockchain block number for the query, defaults to None.
 
         Returns:
-            Optional[NeuronInfo]: Detailed information about the neuron if found, ``None`` otherwise.
-
-        This function is crucial for analyzing individual neurons' contributions and status within a specific
-        subnet, offering insights into their roles in the network's consensus and validation mechanisms.
+            Optional[NeuronInfo]: Detailed information about the neuron if found, None otherwise.
         """
         if uid is None:
             return NeuronInfo._null_neuron()
 
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
+        block_hash = self.substrate.get_block_hash(block) if block is not None else None
+        params = [netuid, uid, block_hash] if block_hash else [netuid, uid]
 
-            block_hash = None if block == None else self.substrate.get_block_hash(block)
-            params = [netuid, uid]
-            if block_hash:
-                params = params + [block_hash]
-            return self.substrate.rpc_request(
-                method="neuronInfo_getNeuron", params=params  # custom rpc method
-            )
+        json_body = self.substrate.rpc_request(
+            method="neuronInfo_getNeuron",
+            params=params
+        )
+        result = json_body.get("result", None)
 
-        json_body = make_substrate_call_with_retry()
-        result = json_body["result"]
-
-        if result in (None, []):
+        if not result:
             return NeuronInfo._null_neuron()
 
         return NeuronInfo.from_vec_u8(result)
@@ -4015,79 +3976,87 @@ class subtensor:
     ################
     ## Extrinsics ##
     ################
-
     def _do_delegation(
-        self,
-        wallet: "bittensor.wallet",
-        delegate_ss58: str,
-        amount: "Balance",
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
+            self,
+            wallet: "bittensor.wallet",
+            delegate_ss58: str,
+            amount: "Balance",
+            wait_for_inclusion: bool = True,
+            wait_for_finalization: bool = False,
     ) -> bool:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            call = self.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="add_stake",
-                call_params={"hotkey": delegate_ss58, "amount_staked": amount.rao},
-            )
-            extrinsic = self.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )
-            response = self.substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-            )
-            # We only wait here if we expect finalization.
-            if not wait_for_finalization and not wait_for_inclusion:
-                return True
-            response.process_events()
-            if response.is_success:
-                return True
-            else:
-                raise StakeError(response.error_message)
+        """
+        Initiates a delegation transaction to a specified delegate using the Bittensor network.
 
-        return make_substrate_call_with_retry()
+        Args:
+            wallet (bittensor.wallet): The wallet to perform the transaction.
+            delegate_ss58 (str): The SS58 address of the delegate.
+            amount (Balance): The amount to delegate.
+            wait_for_inclusion (bool, optional): Wait for the transaction to be included in a block. Defaults to True.
+            wait_for_finalization (bool, optional): Wait for the transaction to be finalized. Defaults to False.
+
+        Returns:
+            bool: True if the transaction was successful, False otherwise.
+        """
+        call = self.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="add_stake",
+            call_params={"hotkey": delegate_ss58, "amount_staked": amount.rao},
+        )
+        extrinsic = self.substrate.create_signed_extrinsic(call=call, keypair=wallet.coldkey)
+        response = self.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+        # If not waiting for inclusion or finalization, assume success.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
+        response.process_events()
+        if response.is_success:
+            return True
+        else:
+            raise StakeError(response.error_message)
 
     def _do_undelegation(
-        self,
-        wallet: "bittensor.wallet",
-        delegate_ss58: str,
-        amount: "Balance",
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
+            self,
+            wallet: "bittensor.wallet",
+            delegate_ss58: str,
+            amount: "Balance",
+            wait_for_inclusion: bool = True,
+            wait_for_finalization: bool = False,
     ) -> bool:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            call = self.substrate.compose_call(
-                call_module="SubtensorModule",
-                call_function="remove_stake",
-                call_params={
-                    "hotkey": delegate_ss58,
-                    "amount_unstaked": amount.rao,
-                },
-            )
-            extrinsic = self.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey
-            )
-            response = self.substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-            )
-            # We only wait here if we expect finalization.
-            if not wait_for_finalization and not wait_for_inclusion:
-                return True
-            response.process_events()
-            if response.is_success:
-                return True
-            else:
-                raise StakeError(response.error_message)
+        """
+        Initiates an undelegation transaction to remove stake from a specified delegate using the Bittensor network.
 
-        return make_substrate_call_with_retry()
+        Args:
+            wallet (bittensor.wallet): The wallet to perform the transaction.
+            delegate_ss58 (str): The SS58 address of the delegate.
+            amount (Balance): The amount to undelegate.
+            wait_for_inclusion (bool, optional): Wait for the transaction to be included in a block. Defaults to True.
+            wait_for_finalization (bool, optional): Wait for the transaction to be finalized. Defaults to False.
 
-    from typing import Any
+        Returns:
+            bool: True if the transaction was successful, False otherwise.
+        """
+        call = self.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="remove_stake",
+            call_params={"hotkey": delegate_ss58, "amount_unstaked": amount.rao},
+        )
+        extrinsic = self.substrate.create_signed_extrinsic(call=call, keypair=wallet.coldkey)
+        response = self.substrate.submit_extrinsic(
+            extrinsic,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+        # If not waiting for inclusion or finalization, assume success.
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True
+        response.process_events()
+        if response.is_success:
+            return True
+        else:
+            raise StakeError(response.error_message)
 
     def _do_nominate(
             self,
