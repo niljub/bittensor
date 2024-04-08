@@ -21,6 +21,7 @@ import copy
 import time
 import torch
 import logging
+import warnings
 import argparse
 import bittensor
 import scalecodec
@@ -427,16 +428,11 @@ class subtensor:
     #### SubstrateInterface related
     ####################
     def connect_websocket(self):
-        """
-        (Re)creates the websocket connection, if the URL contains a 'ws' or 'wss' scheme
-        """
-        self.subtensor.connect_websocket
+        warnings.warn("connect_websocket is deprecated and will be removed in a future version. Use NetworkManager instead.", DeprecationWarning, stacklevel=2)
 
     def close(self):
-        """
-        Cleans up resources for this subtensor instance like active websocket connection and active extensions
-        """
-        self.substrate.close()
+        warnings.warn("close is deprecated and will be removed in a future version. Use NetworkManager instead.", DeprecationWarning, stacklevel=2)
+
 
     #####################
     #### Delegation #####
