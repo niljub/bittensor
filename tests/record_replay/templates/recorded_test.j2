@@ -1,0 +1,21 @@
+{% if module_path and func_name %}
+from {{ module_path }} import {{ func_name }}
+{% endif %}
+import json
+from pathlib import Path
+import pytest
+
+def test_{{ func_name }}_{{ test_id }}():
+    # Load the recorded data
+    with open(Path(__file__).parent.joinpath('{{ recording_filename }}'), 'r') as file:
+        record = json.load(file)
+
+    expected_result = record['result']
+    {% if success %}
+    # Call the function with recorded arguments and compare the result
+    assert {{ invocation }} == expected_result
+    {% else %}
+    # Expect the function to raise an exception
+    with pytest.raises(Exception):
+        {{ invocation }}
+    {% endif %}

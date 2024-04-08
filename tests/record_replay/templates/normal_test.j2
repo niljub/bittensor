@@ -1,0 +1,9 @@
+import pytest
+
+def test_{{ func_name }}():
+    {% if success %}
+    assert {{ func_name }}({{ call_args }}) == {{ result }}
+    {% else %}
+    with pytest.raises(Exception):
+        {{ func_name }}({{ call_args }})
+    {% endif %}

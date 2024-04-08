@@ -3,6 +3,7 @@ import subprocess
 from typing import Dict, Any
 import websockets
 
+
 def execute_command(command: str) -> str:
     """
     Execute a shell command and return its output as a string.
@@ -28,14 +29,14 @@ def parse_help_output(help_output: str) -> Dict[str, Any]:
     current_section = None
 
     for line in lines:
-        if line.startswith(' '):
+        if line.startswith(" "):
             if current_section:
-                parts = line.strip().split('  ', 1)
+                parts = line.strip().split("  ", 1)
                 if len(parts) == 2:
                     key, desc = parts
                     parsed_data[current_section][key.strip()] = desc.strip()
         else:
-            section_title = line.strip(': ')
+            section_title = line.strip(": ")
             if section_title:
                 current_section = section_title
                 parsed_data[current_section] = {}
@@ -62,17 +63,19 @@ def collect_cli_data(entrypoint: str) -> Dict[str, Any]:
 
         subcommands = command_data.get("Subcommands", {})
         for subcommand, sub_desc in subcommands.items():
-            subcommand_help_output = execute_command(f"{entrypoint} {command} {subcommand} -h")
+            subcommand_help_output = execute_command(
+                f"{entrypoint} {command} {subcommand} -h"
+            )
             subcommand_data = parse_help_output(subcommand_help_output)
 
             subcommands[subcommand] = {
                 "description": sub_desc,
-                "options": subcommand_data.get("Options", {})
+                "options": subcommand_data.get("Options", {}),
             }
 
         cli_data["commands"][command] = {
             "description": description,
-            "subcommands": subcommands
+            "subcommands": subcommands,
         }
 
     return cli_data

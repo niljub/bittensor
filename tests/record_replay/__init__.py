@@ -1,1 +1,1 @@
-from .record_replay import RRController
+from .record_replay import record
