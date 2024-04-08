@@ -1,7 +1,7 @@
 import json
 import subprocess
 from typing import Dict, Any
-
+import websockets
 
 def execute_command(command: str) -> str:
     """
