@@ -67,6 +67,8 @@ from .commands import (
     WalletBalanceCommand,
     WalletCreateCommand,
 )
+from injector import Injector
+from bittensor.staging.btsession import NetworkModule, managed_network
 
 # Create a console instance for CLI display.
 console = bittensor.__console__
@@ -232,26 +234,24 @@ class cli:
             config = cli.create_config(args)
 
         self.config = config
-        if self.config.command in ALIAS_TO_COMMAND:
-            self.config.command = ALIAS_TO_COMMAND[self.config.command]
-        else:
+        if self.config.command not in ALIAS_TO_COMMAND:
             console.print(
                 f":cross_mark:[red]Unknown command: {self.config.command}[/red]"
             )
             sys.exit()
+        self.config.command = ALIAS_TO_COMMAND[self.config.command]
 
         # Check if the config is valid.
         cli.check_config(self.config)
 
-        # If no_version_checking is not set or set as False in the config, version checking is done.
-        if not self.config.get("no_version_checking", d=True):
+        # If version checking is enabled (default behavior)
+        if self.config.get("no_version_checking", False) is False:
             try:
                 bittensor.utils.version_checking()
-            except:
-                # If version checking fails, inform user with an exception.
+            except Exception as e:
                 raise RuntimeError(
                     "To avoid internet-based version checking, pass --no_version_checking while running the CLI."
-                )
+                ) from e
 
     @staticmethod
     def __create_parser__() -> "argparse.ArgumentParser":
@@ -324,28 +324,37 @@ class cli:
         """
         # Check if command exists, if so, run the corresponding check_config.
         # If command doesn't exist, inform user and exit the program.
-        if config.command in COMMANDS:
-            command = config.command
-            command_data = COMMANDS[command]
-
-            if isinstance(command_data, dict):
-                if config["subcommand"] != None:
-                    command_data["commands"][config["subcommand"]].check_config(config)
-                else:
-                    console.print(
-                        f":cross_mark:[red]Missing subcommand for: {config.command}[/red]"
-                    )
-                    sys.exit(1)
-            else:
-                command_data.check_config(config)
-        else:
-            console.print(f":cross_mark:[red]Unknown command: {config.command}[/red]")
+        command = config.get("command")
+        if command not in COMMANDS:
+            console.print(":cross_mark:[red]Unknown command: {}[/red]".format(command))
             sys.exit(1)
+
+        command_data = COMMANDS[command]
+
+        if isinstance(command_data, dict):
+            if config.get("subcommand") is None:
+                console.print(
+                    ":cross_mark:[red]Missing subcommand for: {}[/red]".format(command)
+                )
+                sys.exit(1)
+
+            subcommand_data = command_data["commands"].get(config.get("subcommand"))
+            if subcommand_data is None:
+                console.print(
+                    ":cross_mark:[red]Invalid subcommand for: {}[/red]".format(command)
+                )
+                sys.exit(1)
+
+            subcommand_data.check_config(config)
+        else:
+            command_data.check_config(config)
 
     def run(self):
         """
         Executes the command from the configuration.
         """
+        injector = Injector(modules=[NetworkModule()])
+
         # Check for print-completion argument
         if self.config.print_completion:
             parser = cli.__create_parser__()
@@ -356,15 +365,19 @@ class cli:
         # Check if command exists, if so, run the corresponding method.
         # If command doesn't exist, inform user and exit the program.
         command = self.config.command
-        if command in COMMANDS:
-            command_data = COMMANDS[command]
+        subcommand = self.config.get("subcommand")
 
-            if isinstance(command_data, dict):
-                command_data["commands"][self.config["subcommand"]].run(self)
-            else:
-                command_data.run(self)
+        if command in ("info", "help") or subcommand in ("info", "help"):
+            COMMANDS[command]["commands"][subcommand].run(self)
         else:
-            console.print(
-                f":cross_mark:[red]Unknown command: {self.config.command}[/red]"
-            )
-            sys.exit()
+            # connect the network transport for commands which depend upon it
+            async with managed_network as _:
+                if command in COMMANDS:
+                    command_data = COMMANDS[command]
+                    if isinstance(command_data, dict):
+                        command_data["commands"][subcommand].run(self)
+                    else:
+                        command_data.run(self)
+                else:
+                    console.print(f":cross_mark:[red]Unknown command: {command}[/red]")
+                    sys.exit()
