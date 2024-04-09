@@ -76,7 +76,7 @@ I haven't figured out the details of this yet, however, you'll just need to ensu
 
 ### Running Tests
 
-After generation, the pytest framework can run the generated test files, or you can opt to use NeuroTest for execution.
+After generation, the pytest framework can run the generated test files, ~~or you can opt to use NeuroTest for execution~~.
 For now, you'll need to manually create mocks for certain network calls. Future versions will autogenerate mocks.
 
 This setup streamlines the process of creating and managing a broad suite of unit tests for Bittensor developers aiming to ensure robustness and reliability in their code.
