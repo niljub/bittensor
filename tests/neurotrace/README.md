@@ -71,7 +71,7 @@ export NTRACE_GEN_ENABLE=<ALL or comma-separated generator names without the .py
 
 ### Generating Tests with Programmatic Invocation
 
-I haven't figured out the details of this yet, however, you'll just need to ensure that either your target methods are decorated directly or dynamically, and then invoke them.
+I haven't figured out the details of this yet, however, you'll just need to ensure that either your target methods are decorated directly or dynamically (using decorate_class_methods), and then invoke them.
 
 
 ### Running Tests
