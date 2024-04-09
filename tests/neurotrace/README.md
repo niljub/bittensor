@@ -45,6 +45,18 @@ def enable_generator():
    decorate_class_methods(subtensor, methods_to_decorate)
 ```
 
+### Alternate Method
+
+NeuroTrace may also be used directly within your code as a decorator. Simply import NeuroTrace and decorate the method or function that you wish to cover with tests and invoke it as normal. NeuroTrace will automatically generate the recording and pytest file with the appropriate class/method/function import and the test.
+```python
+@NeuroTrace
+def some_method(self, stuff, things):
+    ...
+```
+
+
+
+
 ### Generating Tests
 
 7. Before running `btcli`, set the following environment variables to enable test generation:
