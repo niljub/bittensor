@@ -143,7 +143,7 @@ class SubstrateProxyInterface:
                 "close": NOOP,
             },
         )
-
+        self._pending_requests = {}
         if not url:
             raise ValueError("'url' must be provided")
 
@@ -272,70 +272,44 @@ class SubstrateProxyInterface:
 
         return name in self._proxy.config["rpc_methods"]
 
-    @injector.inject
-    def on_message_received(self, message: Dict):
+
+    async def _wait_for_response(self, response_event: asyncio.Event) -> None:
         """
-        Callback to process messages received from the network.
+        Waits for the response to the RPC request to be processed by the callback.
 
         Parameters
         ----------
-        message : Dict
-            The message received from the websocket.
+        response_event : asyncio.Event
+            The event to wait on until the response is received and processed.
         """
-        request_id = message.get("id")
-        subscription_id = message.get("params", {}).get("subscription", None)
+        await response_event.wait()
 
-        if request_id and request_id in self._pending_requests:
-            # Handle RPC responses
-            handler = self._pending_requests.pop(request_id)
-            handler(message)
-
-        elif subscription_id and subscription_id in self._subscription_handlers:
-            # Handle subscription updates
-            handler = self._subscription_handlers[subscription_id]
-            handler(
-                message, None, subscription_id
-            )  # Update number is not used in this simplified example
-
-    def rpc_request(
-        self,
-        method: str,
-        params: List[Any],
-        result_handler: Optional[Callable[[Any], None]] = None,
-    ):
+    def _default_result_handler(self, request_id: str) -> Callable[[Any], None]:
         """
-        Method that handles the actual RPC request. Uses the transport to send requests
-        and process responses via callbacks.
+        Generates a default result handler that logs the response.
 
         Parameters
         ----------
-        method : str
-            The JSONRPC request method.
-        params : List[Any]
-            A list containing the parameters of the JSONRPC request.
-        result_handler : Optional[Callable[[Any], None]], optional
-            Callback function that processes the result received from the node, by default None.
+        request_id : str
+            The request ID for which the handler is being generated.
+
+        Returns
+        -------
+        Callable[[Any], None]
+            A callback function that logs the response.
         """
-        request_id = generate_request_token("RPC")
+        return lambda response: logger.info(f"Response for #{request_id}: {response}")
 
-        payload = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-            "id": request_id,
-        }
+    def debug_message(self, message: str) -> None:
+        """
+        Logs a debug message.
 
-        self.debug_message(f'RPC request #{request_id}: "{method}"')
-        if result_handler:
-            # If a result handler is provided, store it for handling the response.
-            self._pending_requests[request_id] = result_handler
-        else:
-            # If no result handler is provided, use a default handler to simply log the response.
-            self._pending_requests[request_id] = lambda response: self.debug_message(
-                f"Response for #{request_id}: {response}"
-            )
-        # Use the transport's method to queue the message for sending.
-        self.transport.send_message(json.dumps(payload))
+        Parameters
+        ----------
+        message : str
+            The debug message to log.
+        """
+        logger.debug(message)
 
 
 patch = gorilla.Patch(

@@ -22,6 +22,11 @@ from websockets.exceptions import (
     ConnectionClosedOK,
     ConnectionClosed,
     WebSocketProtocolError,
+    InvalidParameterName,
+    InvalidOrigin,
+    InvalidState,
+    InvalidHeaderValue,
+    InvalidHeaderFormat,
 )
 
 logger = getLogger(__name__)
@@ -117,18 +122,15 @@ class WebSocketTransport(Transport):
                 ):
                     try:
                         self.connection = websocket
-                    except InvalidURI as exc:
-                        logger.error(f"Invalid URI: {exc}")
-                        raise FatalError from exc
-
                     except SecurityError as exc:
+                        # Connection violated a security rule. Fatal.
                         logger.error(f"Security error: {exc}")
                         tb = sys.exception().__traceback__
                         raise FatalError(...).with_traceback(tb)
 
-                    except ConnectionClosedError as exc:
+                    except (ConnectionClosedError, ConnectionClosed, InvalidState) as exc:
                         logger.warning(f"Connection closed unexpectedly: {exc}")
-                        # ConnectionClosed can trigger a reconnect, handled by the loop
+                        # ConnectionClosed[Error] can trigger a reconnect, handled by the loop
 
                     except WebSocketException as exc:
                         logger.warning(f"WebSocket error occurred: {exc}")
@@ -139,20 +141,35 @@ class WebSocketTransport(Transport):
                         # Timeout can trigger a reconnect
 
                     except Exception as exc:
+                        # All other exceptions. Fatal.
                         logger.error(f"Unhandled exception: {exc}")
                         tb = sys.exception().__traceback__
                         raise FatalError(...).with_traceback(tb)
 
+            except InvalidURI as exc:
+                logger.error(f"Invalid URI: {exc}")
+                raise FatalError from exc
             except RuntimeError as exc:
-                # Check if the original cause of RuntimeError was StopIteration
+                # Check if the original cause of RuntimeError was [Async]StopIteration. Reconnect.
                 if isinstance(exc.__cause__, StopIteration) or isinstance(exc.__cause__, StopAsyncIteration):
                     # Runtime error caused by StopIteration - Assume websocket closed gracefully
-                    logger.info("Closing websocket connection")
+                    logger.info("Closing websocket connection.")
                 else:
-                    # Runtime error not caused by StopIteration - Assume FatalError condition
+                    # Runtime error not caused by [Async]StopIteration - Assume TransportError condition. Fatal.
                     logger.error(f"Runtime error occurred: {exc.__cause__}")
                     tb = sys.exception().__traceback__
-                    raise FatalError(...).with_traceback(tb)
+                    raise TransportError(...).with_traceback(tb)
+            except (WebSocketProtocolError, InvalidParameterName, InvalidOrigin, InvalidHeaderValue, InvalidHeaderFormat) as exc:
+                # Raised when invalid connection parameters have been supplied. Fatal.
+                logger.error(f"Invalid connection parameters: {exc}")
+                tb = sys.exception().__traceback__
+                raise FatalError(...).with_traceback(tb)
+
+            except Exception as exc:
+                # All other exceptions. Fatal.
+                logger.error(f"Unhandled exception: {exc}")
+                tb = sys.exception().__traceback__
+                raise FatalError(...).with_traceback(tb)
 
     async def reconnect(self, reason: str = "reconnect triggered") -> None:
         if self.connection:
@@ -170,13 +187,13 @@ class WebSocketTransport(Transport):
         """Send data over WebSocket with retry logic."""
         await self._send_with_retries(data)
 
-    async def _send_with_retries(self, data: Any, retries: int = 0) -> None:
+    async def _send_with_retries(self, data: Any, retries: int = 0, timeout: Optional[float] = None) -> None:
         """Attempt to send data with exponential backoff retries."""
         try:
             await self._ensure_connection()
-            async with asyncio.timeout(self.send_timeout):
+            async with asyncio.timeout(timeout or self.send_timeout):
                 await self.connection.send(json.dumps(data))
-        except (WebSocketException, TimeoutError) as e:
+        except (WebSocketException, TimeoutError, WebSocketProtocolError) as e:
             if retries < self.max_retries:
                 await asyncio.sleep(self.retry_backoff**retries)
                 await self._send_with_retries(data, retries + 1)
@@ -184,14 +201,15 @@ class WebSocketTransport(Transport):
                 raise RetryableError(
                     f"Failed to send data after {self.max_retries} attempts"
                 ) from e
+
         except Exception as e:
             raise FatalError(f"Unexpected error sending data: {e}") from e
 
-    async def receive(self) -> Any:
+    async def receive(self, timeout: Optional[float] = None) -> Any:
         """Receive data from WebSocket."""
         await self._ensure_connection()
         try:
-            async with asyncio.timeout(self.receive_timeout):
+            async with asyncio.timeout(timeout or self.receive_timeout):
                 message = await self.connection.recv()
                 return json.loads(message)
         except ConnectionClosedOK:
