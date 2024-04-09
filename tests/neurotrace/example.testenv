@@ -1,5 +1,9 @@
 # NeuroTrace Test Suite env
+
+# Username for keeping track of generated tests
 GITHUB_USER=wolfentensor
+
+# Paths can be relative to neurotrace or absolute
 GENERATORS_PATH=generators
 NEUROTRACE_TEMPLATES_DIR=templates
 NEUROTRACE_PYTESTS_DIR=tests
