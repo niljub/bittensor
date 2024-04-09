@@ -57,7 +57,7 @@ def some_method(self, stuff, things):
 
 
 
-### Generating Tests
+### Generating Tests with Btcli Invocation
 
 7. Before running `btcli`, set the following environment variables to enable test generation:
 ```shell
@@ -66,11 +66,15 @@ export NTRACE_GEN_MODE=1
 export NTRACE_GEN_ENABLE=<ALL or comma-separated generator names without the .py>
 ```
 
+#### Generating Tests with Programmatic Invocation
+
+I haven't figured out the details of this yet, however, you'll just need to ensure that either your target methods are decorated directly or dynamically, and then invoke them.
+
 8. Execute `btcli` with the commands that interact with the target methods. This will generate test files in the `NEUROTRACE` directories, as defined in your `.testenv` file. Note that multiple files may be generated for a single method if it is invoked multiple times during this process.
 
 ### Running Tests
 
 After generation, the pytest framework can run the generated test files, or you can opt to use NeuroTest for execution.
-For now, you'll need to manually create mocks for certain network calls. Future versions will autogenerate mocks.s
+For now, you'll need to manually create mocks for certain network calls. Future versions will autogenerate mocks.
 
 This setup streamlines the process of creating and managing a broad suite of unit tests for Bittensor developers aiming to ensure robustness and reliability in their code.
