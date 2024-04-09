@@ -66,11 +66,13 @@ export NTRACE_GEN_MODE=1
 export NTRACE_GEN_ENABLE=<ALL or comma-separated generator names without the .py>
 ```
 
-#### Generating Tests with Programmatic Invocation
+8. Execute `btcli` with the commands that interact with the target methods. This will generate test files in the `NEUROTRACE` directories, as defined in your `.testenv` file. Note that multiple files may be generated for a single method if it is invoked multiple times during this process.
+
+
+### Generating Tests with Programmatic Invocation
 
 I haven't figured out the details of this yet, however, you'll just need to ensure that either your target methods are decorated directly or dynamically, and then invoke them.
 
-8. Execute `btcli` with the commands that interact with the target methods. This will generate test files in the `NEUROTRACE` directories, as defined in your `.testenv` file. Note that multiple files may be generated for a single method if it is invoked multiple times during this process.
 
 ### Running Tests
 
