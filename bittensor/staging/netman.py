@@ -38,6 +38,7 @@ from bittensor.staging.utils import generate_request_token
 
 DEFAULT_NETWORK = "finney.opentensor.ai"
 logger = getLogger(__name__)
+lock = threading.Lock()
 
 
 class NetworkManager:
@@ -112,75 +113,7 @@ class NetworkManager:
                     return False  # Return False if the host is not reachable/resolvable
         return True  # All endpoints are reachable
 
-    async def async_rpc_request(
-        self,
-        method: str,
-        params: List[Any],
-        result_handler,
-    ) -> None:
-        """
-        Handles asynchronous RPC request, registering a callback for responses.
 
-        Parameters
-        ----------
-        method : str
-            The JSONRPC request method.
-        params : List[Any]
-            A list containing the parameters of the JSONRPC request.
-        result_handler : Coroutine[Any, Any, None]
-            Callback function that processes the result received, Required for asynchronous RPC.
-        """
-        request_id = generate_request_token("RPC")
-        payload = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-            "id": str(request_id),
-        }
-        await self.send_data(json.dumps(payload), callback=result_handler)
-
-    def rpc_request(
-        self,
-        method: str,
-        params: List[Any],
-        result_handler: Optional[Callable[[Any], None]] = None,
-    ) -> Dict:
-        """
-        Handles the synchronous RPC request, registering a callback for responses.
-
-        Parameters
-        ----------
-        method : str
-            The JSONRPC request method.
-        params : List[Any]
-            A list containing the parameters of the JSONRPC request.
-        result_handler : Optional[Callable[[Any], None]], optional
-            Callback function that processes the result received, by default None.
-        """
-        request_id = generate_request_token("RPC")
-        response_event = asyncio.Event()
-        payload = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-            "id": str(request_id),
-        }
-
-        # Setup the result handler and the event to wait for the response
-        def handle_response(response):
-            if result_handler:
-                result_handler(response)
-            response_event.set()
-
-        # Dispatch the async task without awaiting it, using the loop running in another thread
-        future = asyncio.run_coroutine_threadsafe(
-            self.send_data(json.dumps(payload), callback=handle_response),
-            self.loop
-        )
-
-        # Wait for the response to be handled by the callback
-        result = future.result()  # Blocks until `future.set_result` is called
-        return result
 
     async def send_data(
         self,
@@ -262,7 +195,7 @@ class NetworkManager:
                     self._trigger_callback(callback, processed_data)
             if topic and topic in self.subscriptions:
                 called_back = True
-                await self._notify_subscribers(topic, data)
+                await self._notify_subscribers(topic, processed_data)
             if not called_back:
                 # Handle case where there's no callback or subscribers registered for the request_id
                 logger.debug(f"No callback registered for request_id: {request_id}")
@@ -330,32 +263,53 @@ class NetworkManager:
             callback: The callback function that will be called with two arguments:
                       the topic as a string and the received data.
         """
-        if topic not in self.subscriptions:
-            self.subscriptions[topic] = []
+        with lock:
+            if topic not in self.subscriptions:
+                self.subscriptions[topic] = []
 
-        self.subscriptions[topic].append(callback)
-        logger.info(f"Subscribed to topic '{topic}'")
+            self.subscriptions[topic].append(callback)
+            logger.info(f"Subscribed to topic '{topic}'")
 
-    async def send_subscription_reqeust(self):
+    def unsubscribe(self, topic: str, callback: Callable[[str, Any], None]) -> None:
+        """
+        UnSubscribes a callback function from a specified topic.
+
+        Args:
+            topic: The topic to which the callback function subscribes.
+            callback: The callback to unsubscribe.
+        """
+        with lock:
+            if topic not in self.subscriptions:
+                logger.debug(f"No such topic to unsubscribe '{topic}'")
+                return
+
+            self.subscriptions[topic].append(callback)
+            logger.info(f"Subscribed to topic '{topic}'")
+
+    async def send_subscription_reqeust(self, topic: str, method: str) -> None:
         # Subscribe to a system event or extrinsic event
         payload = {
-            "id":1,
-            "jsonrpc":"2.0",
-            "method":"rpc_customSubscribe"
+            "id": generate_request_token("SUB"),
+            "jsonrpc": "2.0",
+            "method": "rpc_customSubscribe",
+            "params": {"topic": topic},
         }
+        result = self.rpc_request(method, payload)
 
-    async def _notify_subscribers(self, processed_data: dict) -> None:
+    async def _notify_subscribers(self, topic: str, processed_data: dict) -> None:
         """
         Notifies all subscribers about new data on their subscribed topic.
         """
         topic = processed_data.get("topic")
-        if topic in self.subscriptions:
-            for callback in self.subscriptions[topic]:
-                try:
-                    if callable(callback):
-                        self._trigger_callback(callback, processed_data=processed_data)
-                except Exception as exc:
-                    logger.error(f"Error in callback for topic '{topic}': {exc}", exc_info=True)
+        for callback in self.subscriptions[topic]:
+            try:
+                if callable(callback):
+                    self._trigger_callback(callback, processed_data=processed_data)
+                else:
+                    logger.debug(f"Ubsubscribing non-callable '{callback}' from topic '{topic}'")
+                    self.unsubscribe(topic, callback)
+            except Exception as exc:
+                logger.error(f"Error in callback for topic '{topic}': {exc}", exc_info=True)
 
     async def _persist_data(self, data: Any, direction: str) -> None:
         """Persist data to disk when queues are full or in an error state."""

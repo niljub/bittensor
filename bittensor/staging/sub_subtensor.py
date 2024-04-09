@@ -3,7 +3,8 @@ import inspect
 import json
 from logging import getLogger
 from typing import Any, Callable, Dict, List, Optional, Type, Union
-
+from functools import lru_cache
+import asyncio
 import gorilla
 import substrateinterface
 from substrateinterface import SubstrateInterface, ExtensionInterface
@@ -253,6 +254,9 @@ class SubstrateProxyInterface:
         """
         logger.debug(message)
 
+    def rpc_request(self):
+
+
     def supports_rpc_method(self, name: str) -> bool:
         """
         Check if substrate RPC supports given method
@@ -310,6 +314,9 @@ class SubstrateProxyInterface:
             The debug message to log.
         """
         logger.debug(message)
+
+
+
 
 
 patch = gorilla.Patch(
