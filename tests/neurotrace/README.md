@@ -10,9 +10,10 @@ To set up and utilize a generator for creating these tests, follow the steps bel
 
 Make sure that you have a virtual environment with the required packages installed.
 ```bash
+cd path/to/neurotrace
 python3 -m venv venv
 . venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### Configuration
