@@ -1,14 +1,5 @@
 from bittensor.subtensor import subtensor
-import types
-from .record_replay import NeuroTrace
-
-
-def decorate_class_methods(cls, method_names):
-    for name in method_names:
-        if hasattr(cls, name) and isinstance(getattr(cls, name), types.FunctionType):
-            original_method = getattr(cls, name)
-            decorated_method = NeuroTrace(original_method)
-            setattr(cls, name, decorated_method)
+from ..ntrace_core import decorate_class_methods
 
 
 methods_to_decorate = [
@@ -44,4 +35,7 @@ methods_to_decorate = [
     "state_call",
 ]
 
-decorate_class_methods(subtensor, methods_to_decorate)
+
+def enable_generator():
+    decorate_class_methods(subtensor, methods_to_decorate)
+

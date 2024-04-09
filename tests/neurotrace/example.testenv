@@ -1,0 +1,9 @@
+# NeuroTrace Test Suite env
+GITHUB_USER=wolfentensor
+GENERATORS_PATH=generators
+NEUROTRACE_TEMPLATES_DIR=templates
+NEUROTRACE_PYTESTS_DIR=tests
+NEUROTRACE_RECORDINGS_DIR=tests/recordings
+NEUROTRACE_PARAMS_DIR=tests/params
+
+
