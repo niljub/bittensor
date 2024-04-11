@@ -24,8 +24,9 @@ from rich.prompt import Prompt
 from typing import List, Union, Optional, Dict, Tuple
 from tqdm import tqdm
 
-from bittensor.subtensor import subtensor as bt_subtensor
-from bittensor.commands import defaults
+from bittensor.futures.subtensor import subtensor as bt_subtensor
+from bittensor.futures.commands import defaults
+from bittensor.futures.subtensor.config import BittensorNetwork, DEFAULT_NETWORK, DEFAULT_CHAIN_ENDPOINT
 from bittensor.utils import (
     get_hotkey_wallets_for_wallet,
     get_delegates_details, 
@@ -35,6 +36,44 @@ from bittensor.utils.balance import Balance
 
 console = bittensor.__console__
 
+def add_args(parser: argparse.ArgumentParser, prefix: Optional[str] = None):
+    prefix_str = "" if prefix is None else f"{prefix}."
+
+    if prefix is not None:
+        prefix_str += prefix + "."
+
+    if prefix_str + "subtensor.network" not in parser._option_string_actions:
+        parser.add_argument(
+            "--" + prefix_str + "subtensor.network",
+            default=DEFAULT_NETWORK,
+            type=str,
+            help=f"""The subtensor network flag. The choices are:
+                                    -- {BittensorNetwork.FINNEY.name.lower()} (main network)
+                                    -- {BittensorNetwork.TEST.name.lower()} (test network)
+                                    -- {BittensorNetwork.ARCHIVE.name.lower()} (archive network +300 blocks)
+                                    -- {BittensorNetwork.LOCAL.name.lower()} (local running network)
+                                If this option is set it overloads subtensor.chain_endpoint with
+                                an entry point node from that network.
+                                """,
+        )
+
+    if prefix_str + "subtensor.chain_endpoint" not in parser._option_string_actions:
+        parser.add_argument(
+            "--" + prefix_str + "subtensor.chain_endpoint",
+            default=DEFAULT_CHAIN_ENDPOINT,
+            type=str,
+            help="""The subtensor endpoint flag. If set, overrides the --network flag.
+                                """,
+        )
+
+    if prefix_str + "subtensor.mock" not in parser._option_string_actions:
+        parser.add_argument(
+            "--" + prefix_str + "subtensor._mock",
+            default=False,
+            type=bool,
+            help="""If true, uses a mocked connection to the chain.
+                                """,
+        )
 
 class StakeCommand:
     """
@@ -574,3 +613,11 @@ class StakeShow:
 
         bittensor.wallet.add_args(list_parser)
         bittensor.subtensor.add_args(list_parser)
+
+
+def main():
+    pass
+
+
+if __name__ == "__main__":
+    main()

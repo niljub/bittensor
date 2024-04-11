@@ -26,17 +26,6 @@ import nest_asyncio
 
 nest_asyncio.apply()
 
-# Bittensor code and protocol version.
-__version__ = "6.9.3"
-
-version_split = __version__.split(".")
-__version_as_int__: int = (
-    (100 * int(version_split[0]))
-    + (10 * int(version_split[1]))
-    + (1 * int(version_split[2]))
-)
-__new_signature_version__ = 360
-
 # Rich console.
 __console__ = Console()
 __use_console__ = True
@@ -73,138 +62,23 @@ def debug(on: bool = True):
     logging.set_debug(on)
 
 
-# Substrate chain block time (seconds).
-__blocktime__ = 12
-
-# Pip address for versioning
-__pipaddress__ = "https://pypi.org/pypi/bittensor/json"
-
-# Raw github url for delegates registry file
-__delegates_details_url__: str = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
-
-# Substrate ss58_format
-__ss58_format__ = 42
-
-# Wallet ss58 address length
-__ss58_address_length__ = 48
-
-__networks__ = ["local", "finney", "test", "archive"]
-
-__finney_entrypoint__ = "wss://entrypoint-finney.opentensor.ai:443"
-
-__finney_test_entrypoint__ = "wss://test.finney.opentensor.ai:443/"
-
-__archive_entrypoint__ = "wss://archive.chain.opentensor.ai:443/"
-
-# Needs to use wss://
-__bellagene_entrypoint__ = "wss://parachain.opentensor.ai:443"
-
-__local_entrypoint__ = "ws://127.0.0.1:9944"
-
-__tao_symbol__: str = chr(0x03C4)
-
-__rao_symbol__: str = chr(0x03C1)
-
-# Block Explorers map network to explorer url
-## Must all be polkadotjs explorer urls
-__network_explorer_map__ = {
-    "opentensor": {
-        "local": "https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fentrypoint-finney.opentensor.ai%3A443#/explorer",
-        "endpoint": "https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fentrypoint-finney.opentensor.ai%3A443#/explorer",
-        "finney": "https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Fentrypoint-finney.opentensor.ai%3A443#/explorer",
-    },
-    "taostats": {
-        "local": "https://x.taostats.io",
-        "endpoint": "https://x.taostats.io",
-        "finney": "https://x.taostats.io",
-    },
-}
-
-# --- Type Registry ---
-__type_registry__ = {
-    "types": {
-        "Balance": "u64",  # Need to override default u128
-    },
-    "runtime_api": {
-        "NeuronInfoRuntimeApi": {
-            "methods": {
-                "get_neuron_lite": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                        {
-                            "name": "uid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_neurons_lite": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-            }
-        },
-        "StakeInfoRuntimeApi": {
-            "methods": {
-                "get_stake_info_for_coldkey": {
-                    "params": [
-                        {
-                            "name": "coldkey_account_vec",
-                            "type": "Vec<u8>",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-                "get_stake_info_for_coldkeys": {
-                    "params": [
-                        {
-                            "name": "coldkey_account_vecs",
-                            "type": "Vec<Vec<u8>>",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-            },
-        },
-        "ValidatorIPRuntimeApi": {
-            "methods": {
-                "get_associated_validator_ip_info_for_subnet": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                },
-            },
-        },
-        "SubnetInfoRuntimeApi": {
-            "methods": {
-                "get_subnet_hyperparams": {
-                    "params": [
-                        {
-                            "name": "netuid",
-                            "type": "u16",
-                        },
-                    ],
-                    "type": "Vec<u8>",
-                }
-            }
-        },
-        "SubnetRegistrationRuntimeApi": {
-            "methods": {"get_network_registration_cost": {"params": [], "type": "u64"}}
-        },
-    },
-}
+from .defines import (
+    __blocktime__,
+    __pipaddress__,
+    __delegates_details_url__,
+    __ss58_format__,
+    __ss58_address_length__,
+    __networks__,
+    __finney_entrypoint__,
+    __finney_test_entrypoint__,
+    __archive_entrypoint__,
+    __bellagene_entrypoint__,
+    __local_entrypoint__,
+    __tao_symbol__,
+    __rao_symbol__,
+    __network_explorer_map__,
+    __type_registry__,
+)
 
 from .errors import (
     BlacklistedException,

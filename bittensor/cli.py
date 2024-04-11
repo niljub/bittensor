@@ -18,7 +18,11 @@
 import sys
 import shtab
 import argparse
-import bittensor
+# import bittensor
+from bittensor import (
+    __console__ as console,
+    turn_console_on
+)
 from typing import List, Optional
 from .commands import (
     AutocompleteCommand,
@@ -68,8 +72,8 @@ from .commands import (
     WalletCreateCommand,
 )
 
-# Create a console instance for CLI display.
-console = bittensor.__console__
+# # Create a console instance for CLI display.
+# console = bittensor.__console__
 
 ALIAS_TO_COMMAND = {
     "subnets": "subnets",
