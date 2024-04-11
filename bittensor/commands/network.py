@@ -16,15 +16,17 @@
 # DEALINGS IN THE SOFTWARE.
 
 import argparse
-import bittensor
-from . import defaults
+from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 from typing import List, Optional, Dict
-from .utils import get_delegates_details, DelegatesDetails, check_netuid_set
-from .identity import SetIdentityCommand
 
-console = bittensor.__console__
+
+from bittensor.futures.commands import defaults
+from bittensor.commands.utils import get_delegates_details, DelegatesDetails, check_netuid_set
+from bittensor.commands.identity import SetIdentityCommand
+
+console = Console()
 
 
 class RegisterSubnetworkCommand:

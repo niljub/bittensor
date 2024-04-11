@@ -21,6 +21,7 @@ from tqdm import tqdm
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.prompt import Prompt
+from rich.console import Console
 from typing import List, Union, Optional, Dict, Tuple
 from tqdm import tqdm
 
@@ -34,7 +35,7 @@ from bittensor.utils import (
 )
 from bittensor.utils.balance import Balance
 
-console = bittensor.__console__
+console = Console()
 
 def add_args(parser: argparse.ArgumentParser, prefix: Optional[str] = None):
     prefix_str = "" if prefix is None else f"{prefix}."

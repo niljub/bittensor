@@ -49,44 +49,44 @@ from bittensor.futures.chain_data import (
     IPInfo,
     custom_rpc_type_registry,
 )
-from bittensor.futures.extrinsics.network import (
+from bittensor.extrinsics.network import (
     register_subnetwork_extrinsic,
     set_hyperparameter_extrinsic,
 )
-from bittensor.futures.extrinsics.staking import (
+from bittensor.extrinsics.staking import (
     add_stake_extrinsic, 
     add_stake_multiple_extrinsic,
 )
-from bittensor.futures.extrinsics.unstaking import (
+from bittensor.extrinsics.unstaking import (
     unstake_extrinsic, 
     unstake_multiple_extrinsic,
 )
-from bittensor.futures.extrinsics.serving import (
+from bittensor.extrinsics.serving import (
     serve_extrinsic,
     serve_axon_extrinsic,
     publish_metadata,
     get_metadata,
 )
-from bittensor.futures.extrinsics.registration import (
+from bittensor.extrinsics.registration import (
     register_extrinsic,
     burned_register_extrinsic,
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
 )
-from bittensor.futures.extrinsics.transfer import transfer_extrinsic
-from bittensor.futures.extrinsics.set_weights import set_weights_extrinsic
-from bittensor.futures.extrinsics.prometheus import prometheus_extrinsic
-from bittensor.futures.extrinsics.delegation import (
+from bittensor.extrinsics.transfer import transfer_extrinsic
+from bittensor.extrinsics.set_weights import set_weights_extrinsic
+from bittensor.extrinsics.prometheus import prometheus_extrinsic
+from bittensor.extrinsics.delegation import (
     delegate_extrinsic,
     nominate_extrinsic,
     undelegate_extrinsic,
 )
-from bittensor.futures.extrinsics.senate import (
+from bittensor.extrinsics.senate import (
     register_senate_extrinsic,
     leave_senate_extrinsic,
     vote_senate_extrinsic,
 )
-from bittensor.futures.extrinsics.root import root_register_extrinsic, set_root_weights_extrinsic
+from bittensor.extrinsics.root import root_register_extrinsic, set_root_weights_extrinsic
 from bittensor.futures.subtensor.config import (
     BittensorNetwork,
 )
