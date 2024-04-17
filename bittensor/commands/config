@@ -1,0 +1,159 @@
+from dataclasses import dataclass
+from typing import Optional
+from enum import Enum
+import logging
+
+from bittensor.btlogging.loggingmachine import LoggingConfig
+from bittensor.defines import (
+    __finney_entrypoint__,
+    __local_entrypoint__,
+    __finney_test_entrypoint__,
+    __archive_entrypoint__,
+)
+
+
+class BittensorNetwork(Enum):
+    FINNEY = __finney_entrypoint__
+    LOCAL = __local_entrypoint__
+    TEST = __finney_test_entrypoint__
+    ARCHIVE = __archive_entrypoint__
+    OTHER = ""
+    
+    def __str__(self):
+        return self.value
+
+
+@dataclass
+class SubtensorConfig:
+    network: BittensorNetwork
+    # If network is BittensorNetwork.OTHER, this is the endpoint used
+    other_network_endpoint: Optional[str]
+    mock: bool
+
+
+@dataclass
+class CudaConfig:
+    dev_id: list
+    use_cuda: bool
+    tpb: int
+
+
+@dataclass
+class PowRegisterConfig:
+    num_processes: int
+    update_interval: int
+    output_in_place: bool
+    verbose: bool
+    cuda: CudaConfig
+
+
+@dataclass
+class AxonConfig:
+    port: int
+    ip: str
+    external_port: int
+    external_ip: str
+    max_workers: int
+    maximum_concurrent_rpcs: int
+
+
+@dataclass
+class PriorityConfig:
+    max_workers: int
+    maxsize: int
+
+
+@dataclass
+class PrometheusConfig:
+    port: int
+    level: str
+
+
+@dataclass
+class WalletConfig:
+    name: str
+    hotkey: str
+    path: str
+
+
+@dataclass
+class DatasetConfig:
+    batch_size: int
+    block_size: int
+    num_workers: int
+    dataset_names: str
+    data_dir: str
+    save_dataset: bool
+    max_datasets: int
+    num_batches: int
+
+
+@dataclass
+class BittensorConfig:
+    netuid: int
+    subtensor: SubtensorConfig
+    pow_register: PowRegisterConfig
+    axon: AxonConfig
+    priority: PriorityConfig
+    prometheus: PrometheusConfig
+    wallet: WalletConfig
+    dataset: DatasetConfig
+    logging: LoggingConfig
+
+
+defaults = BittensorConfig(
+    netuid=1,
+    subtensor=SubtensorConfig(
+        network=BittensorNetwork.FINNEY,
+        chain_endpoint=None,
+        mock=False
+    ),
+    pow_register=PowRegisterConfig(
+        num_processes=None,
+        update_interval=50000,
+        output_in_place=True,
+        verbose=False,
+        cuda=CudaConfig(
+            dev_id=[0], 
+            use_cuda=False, 
+            tpb=256
+        ),
+    ),
+    axon=AxonConfig(
+        port=8091,
+        ip="[::]",
+        external_port=None,
+        external_ip=None,
+        max_workers=10,
+        maximum_concurrent_rpcs=400,
+    ),
+    priority=PriorityConfig(
+        max_workers=5,
+        maxsize=10
+    ),
+    prometheus=PrometheusConfig(
+        port=7091,
+        level=logging.INFO
+    ),
+    wallet=WalletConfig(
+        name="default",
+        hotkey="default",
+        path="~/.bittensor/wallets/"
+    ),
+    dataset=DatasetConfig(
+        batch_size=10,
+        block_size=20,
+        num_workers=0,
+        dataset_names="default",
+        data_dir="~/.bittensor/data/",
+        save_dataset=False,
+        max_datasets=3,
+        num_batches=100
+    ),
+    logging=LoggingConfig(
+        debug=False,
+        trace=False,
+        record_log=False,
+        logging_dir="~/.bittensor/miners"
+    )
+)
