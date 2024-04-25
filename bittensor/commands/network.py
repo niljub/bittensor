@@ -188,7 +188,6 @@ class SubnetLockCostCommand:
         bittensor.subtensor.add_args(parser)
 
 
-# TODO this should show the total stake in each subnet.
 class SubnetListCommand:
     """
     Executes the ``list`` command to list all subnets and their detailed information on the Bittensor network.
@@ -243,10 +242,11 @@ class SubnetListCommand:
         subnets: List[bittensor.SubnetInfo] = subtensor.get_all_subnets_info()
 
         rows = []
-        total_neurons = 0
         total_registered = 0
         total_price = 0
         total_emission = 0
+        total_stake = 0
+        total_alpha_outstanding = 0
         delegate_info: Optional[Dict[str, DelegatesDetails]] = get_delegates_details(
             url=bittensor.__delegates_details_url__
         )
@@ -255,43 +255,36 @@ class SubnetListCommand:
         dynamic_info = subtensor.get_dynamic_info()
 
         for subnet in subnets:
-            total_neurons += subnet.max_n
-            total_registered += subnet.subnetwork_n
             total_price += (
                 dynamic_info[subnet.netuid]["price"]
                 if dynamic_info[subnet.netuid]["tao_reserve"] > 0
                 else 0
             )
             total_emission += subnet.emission_value
+            subnet_stake = dynamic_info[subnet.netuid]["tao_reserve"]
+            alpha_outstanding = dynamic_info[subnet.netuid]["alpha_outstanding"]
             rows.append(
                 (
                     str(subnet.netuid),
                     bittensor.Balance.get_unit(subnet.netuid),
-                    f"{subnet.subnetwork_n}/{subnet.max_n}",
                     "{:.8}".format(
                         str(bittensor.Balance.from_rao(subnet.emission_value))
                     ),
-                    "{:.8}".format(
-                        str(
-                            bittensor.Balance.from_tao(
-                                dynamic_info[subnet.netuid]["price"]
+                    (
+                        "{:.8}".format(
+                            str(
+                                bittensor.Balance.from_tao(
+                                    dynamic_info[subnet.netuid]["price"]
+                                )
                             )
                         )
-                    )
-                    if dynamic_info[subnet.netuid]["tao_reserve"] > 0
-                    else "-",
-                    str(
-                        bittensor.Balance.from_rao(
-                            dynamic_info[subnet.netuid]["tao_reserve"]
-                        )
+                        if dynamic_info[subnet.netuid]["tao_reserve"] > 0
+                        else "-"
                     ),
-                    str(
-                        bittensor.Balance.from_rao(
-                            dynamic_info[subnet.netuid]["alpha_reserve"]
-                        ).set_unit(subnet.netuid)
-                    ),
-                    str(subnet.tempo),
+                    f"{bittensor.Balance.from_rao(subnet_stake)} τ, {bittensor.Balance.from_rao(alpha_outstanding)} α",
+                    str(bittensor.Balance.from_rao(alpha_outstanding)),
                     f"{subnet.burn!s:8.8}",
+                    str(subnet.tempo),
                     f"{delegate_info[subnet.owner_ss58].name if subnet.owner_ss58 in delegate_info else subnet.owner_ss58}",
                 )
             )
@@ -306,8 +299,8 @@ class SubnetListCommand:
             expand=True,
             show_header=True,
             show_footer=True,
-            show_edge=False,  # Removed edge display
-            show_lines=False,  # Ensured no lines are shown for a cleaner look
+            show_edge=False,
+            show_lines=False,
             leading=0,
             style="none",
             row_styles=None,
@@ -321,49 +314,15 @@ class SubnetListCommand:
             highlight=False,
         )
         table.title = "[white]Subnets - {}".format(subtensor.network)
-        table.add_column(
-            "[white]",
-            str(len(subnets)),
-            footer_style="white",
-            style="bold green",
-            justify="center",
-        )
-        table.add_column(
-            "[white]",
-            footer_style="white",
-            style="yellow",
-            justify="right",
-        )
-        table.add_column(
-            "[white]n",
-            f"{total_registered}/{total_neurons}",
-            footer_style="white",
-            style="grey37",
-            justify="right",
-        )
-        table.add_column(
-            "[white]emission",
-            f"{bittensor.Balance.from_rao(total_emission)!s:8.8}",
-            footer_style="white",
-            style="chartreuse1",
-            justify="center",
-        )
-        table.add_column(
-            "[white]price",
-            f"{bittensor.Balance.from_tao(total_price)!s:8.8}",
-            footer_style="white",
-            style="yellow",
-            justify="right",
-        )
-        table.add_column(
-            f"[white][{bittensor.Balance.unit}", style="blue", justify="left"
-        )
-        table.add_column(
-            f"[white]{bittensor.Balance.get_unit(1)}]", style="green", justify="left"
-        )
-        table.add_column("[white]tempo", style="grey37", justify="center")
-        table.add_column("[white]burn", style="deep_pink4", justify="center")
-        table.add_column("[white]owner", style="dark_slate_gray3")
+        table.add_column("", style="bold green", justify="center")
+        table.add_column("", style="bold yellow", justify="center")
+        table.add_column("emission", style="light_sky_blue1", justify="center")
+        table.add_column("price", style="yellow", justify="center")
+        table.add_column("pool (τ, α)", style="blue", justify="center")
+        table.add_column("α outstanding", style="green", justify="center")
+        table.add_column("burn", style="deep_pink4", justify="center")
+        table.add_column("tempo", style="grey37", justify="center")
+        table.add_column("owner", style="dark_slate_gray3", justify="center")
         for row in rows:
             table.add_row(*row)
         column_descriptions_table = Table(
@@ -398,38 +357,33 @@ class SubnetListCommand:
             ("[green]1.[/green]", "Index", "The subnet index."),
             ("[yellow]2.[/yellow]", "Symbol", "The subnet dynamic stake symbol."),
             (
-                "[grey37]3.[/grey37]",
-                "n",
-                "The number of currently registered neurons out of allowed.",
-            ),
-            (
-                "[chartreuse1]4.[/chartreuse1]",
+                "[light_sky_blue1]3.[/light_sky_blue1]",
                 "emission",
                 "The tao emission per block distributed to the pool of this subnet.",
             ),
             (
-                "[yellow]5.[/yellow]",
+                "[yellow]4.[/yellow]",
                 "price",
                 "The current staking rate or price to purchase the dynamic token.",
             ),
             (
-                f"[blue]6.[/blue]",
-                f"{bittensor.Balance.unit}",
-                "The tao currently in the dynamic pool.",
+                f"[blue]5.[/blue]",
+                f"pool (τ, α)",
+                "The tao (τ) and alpha (α) currently in the dynamic pool.",
             ),
             (
-                f"[green]7.[/green]",
-                f"{bittensor.Balance.get_unit(1)}",
+                f"[green]6.[/green]",
+                f"α outstanding",
                 "The dynamic token balance in the pool.",
             ),
-            ("[grey37]8.[/grey37]", "tempo", "The subnet epoch tempo."),
+            ("[grey37]7.[/grey37]", "tempo", "The subnet epoch tempo."),
             (
-                "[deep_pink4]9.[/deep_pink4]",
+                "[deep_pink4]8.[/deep_pink4]",
                 "burn",
                 "The subnet's current burn cost to register a neuron.",
             ),
             (
-                "[dark_slate_gray3]11.[/dark_slate_gray3]",
+                "[dark_slate_gray3]9.[/dark_slate_gray3]",
                 "owner",
                 "The subnet's owner key.",
             ),

@@ -3355,6 +3355,7 @@ class subtensor:
         tao_reserves = {netuid: 0 for netuid in netuids}
         k_values = {netuid: 0 for netuid in netuids}
         prices = {netuid: 1 for netuid in netuids}
+        alpha_outstanding = {netuid: 0 for netuid in netuids}
         for rec in self.substrate.query_map(
             module="SubtensorModule",
             storage_function="DynamicAlphaReserve",
@@ -3376,12 +3377,20 @@ class subtensor:
             block_hash=None,
         ).records:
             k_values[rec[0].value] = rec[1].value
+        for rec in self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="DynamicK",
+            params=[],
+            block_hash=None,
+        ).records:
+            alpha_outstanding[rec[0].value] = rec[1].value
         reserves = {
             netuid: {
                 "netuid": netuid,
                 "tao_reserve": tao_reserves[netuid],
                 "alpha_reserve": alpha_reserves[netuid],
                 "k": k_values[netuid],
+                "alpha_outstanding": alpha_outstanding[netuid],
                 "price": (
                     tao_reserves[netuid] / alpha_reserves[netuid]
                     if alpha_reserves[netuid] > 0
