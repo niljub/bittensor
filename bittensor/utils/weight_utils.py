@@ -24,6 +24,9 @@ from numpy.typing import NDArray
 from typing import Tuple, List
 import hashlib
 
+import scalecodec
+from scalecodec.types import U16, ScaleBytes
+from scalecodec.base import RuntimeConfiguration
 U32_MAX = 4294967295
 U16_MAX = 65535
 
@@ -309,11 +312,13 @@ def generate_weight_hash(
     Returns:
         str: The generated commit hash.
     """
-    # Create a tuple of the input parameters
-    data = (who, netuid, uids, values, version_key)
+    
+
+    obj = RuntimeConfiguration().create_scale_object("([u8; 32], i16, vec<i16>, vec<i16>, i64)")
+    encoded = obj.encode((who, netuid, uids, values, version_key))
 
     # Generate Blake2b hash of the data tuple
-    blake2b_hash = hashlib.blake2b(str(data).encode(), digest_size=32).digest()
+    blake2b_hash = hashlib.blake2b(bytearray(encoded.data), digest_size=32).digest()
 
     # Convert the hash to hex string and add "0x" prefix
     commit_hash = "0x" + blake2b_hash.hex()
