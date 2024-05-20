@@ -294,7 +294,7 @@ def process_weights_for_netuid(
 
 
 def generate_weight_hash(
-    who: str, netuid: int, uids: List[int], values: List[int], version_key: int
+    who: bytes, netuid: int, uids: List[int], values: List[int], version_key: int
 ) -> str:
     """
     Generate a valid commit hash from the provided weights.

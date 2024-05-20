@@ -851,7 +851,8 @@ class subtensor:
 
         # Generate the hash of the weights
         commit_hash = weight_utils.generate_weight_hash(
-            who=wallet.hotkey.ss58_address,
+            who=wallet.hotkey.public_key,
+            # who=wallet.hotkey.ss58_address,
             netuid=netuid,
             uids=uids.tolist(),
             values=weights.tolist(),
