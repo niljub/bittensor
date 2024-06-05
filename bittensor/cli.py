@@ -37,7 +37,7 @@ from .commands import (
     OverviewCommand,
     ProfileCreateCommand,
     ProfileListCommand,
-    ProfileShowCommand,
+    ProfilePrintCommand,
     PowRegisterCommand,
     ProposalsCommand,
     RegenColdkeyCommand,
@@ -201,7 +201,7 @@ COMMANDS = {
         "commands": {
             "create": ProfileCreateCommand,
             "list": ProfileListCommand,
-            "show": ProfileShowCommand,
+            "show": ProfilePrintCommand,
             # "set": ProfileSet,
             # "delete": ProfileDelete,
         },

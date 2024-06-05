@@ -98,7 +98,7 @@ from .misc import UpdateCommand, AutocompleteCommand
 from .profile import (
     ProfileCreateCommand,
     ProfileListCommand,
-    ProfileShowCommand
+    ProfilePrintCommand
 )
 
 from .senate import (

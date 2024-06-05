@@ -176,3 +176,34 @@ def test_print_profile_details_with_data():
         assert mock_print.call_count == 1
         table = mock_print.call_args.args[0]
         assert table.row_count == 2
+
+def test_print_profile_contents_with_data():
+    cli_mock = MagicMock()
+    cli_mock.config.get.return_value = None
+    profile_name = "test"
+    profile_contents = Munch(
+        {
+            "profile": {
+                "name": "test",
+                "path": "~/.bittensor/profiles/",
+            },
+            "wallet": {
+                "name": "test_wallet_name",
+                "hotkey": "test_wallet_hotkey",
+                "path": "test_wallet_path",
+            },
+            "subtensor": {
+                "network": "test_subtensor_network",
+            },
+            "netuid": "1",
+        },
+    )
+
+    with patch('bittensor.__console__.print') as mock_print:
+        ProfilePrintCommand.print_profile_contents(cli_mock, profile_name, profile_contents)
+        # Here you would validate the actual table printed, which can be complex
+        # depending on how the Table object is implemented and used.
+        # For simplicity, we're just checking if the print method was called.
+        assert mock_print.call_count == 1
+        table = mock_print.call_args.args[0]
+        assert table.row_count == 7

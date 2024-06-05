@@ -2,6 +2,7 @@
 import argparse
 import os
 import yaml
+import flatdict
 
 # 3rd Party
 from rich.prompt import Prompt
@@ -175,44 +176,35 @@ class ProfileListCommand:
             help="The path to the profile directory",
         )
 
-class ProfileShowCommand:
+class ProfilePrintCommand:
     """
-    Executes the ``show`` command.
+    Executes the ``print`` command.
 
-    This class provides functionality to show the content of a profile.
-
+    This class provides functionality to print the content of a profile.
     """
 
     @staticmethod
     def run(cli):
-        ProfileShowCommand._run(cli)
+        ProfilePrintCommand._run(cli)
 
     @staticmethod
     def _run(cli: "bittensor.cli"):
-        config = cli.config.copy()
-        path = os.path.expanduser(config.profile.path)
-        try:
-            os.makedirs(path, exist_ok=True)
-        except Exception as e:
-            bittensor.__console__.print(
-                f":cross_mark: [red]Failed to show profile[/red]:[bold white] {e}"
-            )
+        config = cli.config
+        profile_path = os.path.expanduser(config.profile.path)
+        profile_name = config.profile.name
+        if not os.path.isdir(profile_path):
+            bittensor.__console__.print(f"[red]profile.path is not a directory:[/red][bold white] {profile_path}")
             return
-        try:
-            profiles = os.listdir(path)
-        except Exception as e:
-            bittensor.__console__.print(
-                f":cross_mark: [red]Failed to show profile[/red]:[bold white] {e}"
-            )
-            return
-        if not profiles:
-            bittensor.__console__.print(
-                f":cross_mark: [red]No profiles found in {path}[/red]"
-            )
-            return
-        with open(f"{path}{config.profile.name}", "r") as f:
-            config_content = f.read()
-        contents = yaml.safe_load(config_content)
+
+        with open(f"{profile_path}{profile_name}", "r") as f:
+            file_contents = f.read()
+
+        profile_contents = yaml.safe_load(file_contents)
+        ProfilePrintCommand.print_profile_contents(cli, profile_name, profile_contents)
+
+    @staticmethod
+    def print_profile_contents(cli, profile_name, profile_contents):
+        flat_profile = flatdict.FlatDict(profile_contents, delimiter='.')
         table = Table(
             show_footer=True,
             width=cli.config.get("width", None),
@@ -220,20 +212,13 @@ class ProfileShowCommand:
             box=None,
             show_edge=True,
         )
-        table.title = f"[white]Profile [bold white]{config.profile.name}"
-        table.add_column("[overline white]PARAMETERS", style="bold white", justify="left", min_width=10)
-        table.add_column("[overline white]VALUES", style="green", justify="left", min_width=10)
-        for key in contents.keys():
-            if isinstance(contents[key], dict):
-                for subkey in contents[key].keys():
-                    table.add_row(
-                        f"  [bold white]{key}.{subkey}",
-                        f"[green]{contents[key][subkey]}"
-                    )
-                continue
+        table.title = f"[white]Profile [bold white]{profile_name}"
+        table.add_column("[overline white]PARAMETER", style="bold white", justify="left", min_width=10)
+        table.add_column("[overline white]VALUE", style="green", justify="left", min_width=10)
+        for key in flat_profile.keys():
             table.add_row(
-                f"  [bold white]{key}",
-                f"[green]{contents[key]}"
+                f"[bold white]{key}",
+                f"[green]{flat_profile[key]}"
             )
         bittensor.__console__.print(table)
 
@@ -242,8 +227,8 @@ class ProfileShowCommand:
         return config is not None
         
     def add_args(parser: argparse.ArgumentParser):
-        list_parser = parser.add_parser("show", help="""Show profile""")
-        list_parser.set_defaults(func=ProfileShowCommand.run)
+        list_parser = parser.add_parser("print", help="""Print profile""")
+        list_parser.set_defaults(func=ProfilePrintCommand.run)
         list_parser.add_argument(
             "--profile.name",
             type=str,
