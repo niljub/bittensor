@@ -104,48 +104,45 @@ class ProfileListCommand:
 
     @staticmethod
     def _run(cli: "bittensor.cli"):
-        path = os.path.expanduser(cli.config.profile.path)
+        profile_path = os.path.expanduser(cli.config.profile.path)
+        profile_details = ProfileListCommand.get_profile_details(profile_path)
+        
+        ProfileListCommand.print_profile_details(cli, profile_path, profile_details)
+    
+    @staticmethod
+    def get_profile_details(profile_path):
+        if not os.path.isdir(profile_path):
+            bittensor.__console__.print(f"[red]profile.path is not a directory:[/red][bold white] {profile_path}")
+            return
+        
         try:
-            os.makedirs(path, exist_ok=True)
+            files = os.listdir(profile_path)
+            profile_details = []
+            for filename in files:
+                if filename.startswith('btcli-') and filename.endswith('.yaml'):
+                    # Extract the string between 'btcli-' and '.yaml'
+                    profile_name = filename[len('btcli-'):-len('.yaml')]
+                    # Get the full file path
+                    full_path = os.path.join(profile_path, filename)
+                    # Get the file size
+                    file_size = os.path.getsize(full_path)
+                    # Append the details as a tuple to the list
+                    profile_details.append((profile_name, full_path, f"{file_size} bytes"))
+            return profile_details
         except Exception as e:
             bittensor.__console__.print(
-                f":cross_mark: [red]Failed to list profiles[/red]:[bold white] {e}"
+                f"[red]Failed to list profiles[/red]:[bold white] {e}"
             )
             return
-        try:
-            profiles = os.listdir(path)
-        except Exception as e:
+    
+    @staticmethod
+    def print_profile_details(cli, profile_path, profile_details):
+        if not profile_details:
             bittensor.__console__.print(
-                f":cross_mark: [red]Failed to list profiles[/red]:[bold white] {e}"
+                f":cross_mark: [red]No profiles found in '{profile_path}'[/red]"
             )
             return
-        if not profiles:
-            bittensor.__console__.print(
-                f":cross_mark: [red]No profiles found in {path}[/red]"
-            )
-            return
-        profile_content = []
-        for profile in profiles:
-            #load profile
-            try:
-                with open(f"{path}{profile}", "r") as f:
-                    config_content = f.read()
-            except Exception as e:
-                continue #Not a profile
-            try:
-                config = yaml.safe_load(config_content)
-            except Exception as e:
-                continue #Not a profile
-            try:
-                profile_content.append( (
-                    " ",
-                    str(config['profile']['name']),
-                    str(config['subtensor']['network']),
-                    str(config['netuid']),
-                    )
-                )
-            except Exception as e:
-                continue #not a proper profile
+            
         table = Table(
             show_footer=True,
             width=cli.config.get("width", None),
@@ -156,12 +153,13 @@ class ProfileListCommand:
         table.title = "[white]Profiles"
         table.add_column("A", style="red", justify="center", min_width=1)
         table.add_column("Name", style="white", justify="center", min_width=10)
-        table.add_column("Network", style="white", justify="center", min_width=10)
-        table.add_column("Netuid", style="white", justify="center", min_width=10)
-        for profile in profile_content:
-            table.add_row(*profile)
+        table.add_column("Path", style="white", justify="center", min_width=10)
+        table.add_column("Size", style="white", justify="center", min_width=10)
+        for profile in profile_details:
+            #table.add_row("", profile[0], profile[1], profile[2])
+            table.add_row("", *profile)
         bittensor.__console__.print(table)
-    
+
     @staticmethod
     def check_config(config: "bittensor.config"):
         return config is not None        

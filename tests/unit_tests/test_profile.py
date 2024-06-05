@@ -8,9 +8,8 @@ import pytest
 from munch import Munch
 
 # Bittensor
-from bittensor.commands.profile import ProfileCreateCommand
+from bittensor.commands.profile import *
 from bittensor import config as bittensor_config
-
 
 class MockDefaults:
     profile = {
@@ -124,3 +123,56 @@ def test_write_profile():
         # Assert the open function was called correctly and the right contents were written
         mock_file.assert_called_once_with(expected_path, "w+")
         mock_file().write.assert_called_once_with(dump(config))
+
+def test_get_profile_details_not_a_directory():
+    with patch('os.path.isdir', return_value=False):
+        result = ProfileListCommand.get_profile_details('not/a/real/directory')
+        assert result == None
+
+# Test when there are no matching files
+def test_get_profile_details_no_matching_files():
+    with patch('os.path.isdir', return_value=True):
+        with patch('os.listdir', return_value=['file_not_matching_pattern.txt']):
+            result = ProfileListCommand.get_profile_details('/some/directory')
+            assert result == []
+
+# Test when there are matching files
+def test_get_profile_details_matching_files():
+    with patch('os.path.isdir', return_value=True):
+        with patch('os.listdir', return_value=['btcli-profile1.yaml', 'btcli-profile2.yaml', 'file_not_matching_pattern.yaml']):
+            with patch('os.path.join', side_effect=lambda x, y: f"{x}/{y}"):
+                with patch('os.path.getsize', side_effect=[123, 456]):
+                    result = ProfileListCommand.get_profile_details('/profile/path')
+                    expected_result = [
+                        ('profile1', '/profile/path/btcli-profile1.yaml', "123 bytes"),
+                        ('profile2', '/profile/path/btcli-profile2.yaml', "456 bytes")
+                    ]
+                    assert result == expected_result
+
+def test_print_profile_details_empty():
+    cli_mock = MagicMock()
+    cli_mock.config.get.return_value = None
+    profile_path = '/profile/path'
+    profile_details = []
+
+    with patch('bittensor.__console__.print') as mock_print:
+        ProfileListCommand.print_profile_details(cli_mock, profile_path, profile_details)
+        mock_print.assert_called_once_with(":cross_mark: [red]No profiles found in '/profile/path'[/red]")
+
+def test_print_profile_details_with_data():
+    cli_mock = MagicMock()
+    cli_mock.config.get.return_value = None
+    profile_path = '/profile/path'
+    profile_details = [
+        ('profile1', '/profile/path/btcli-profile1.yaml', "123 bytes"),
+        ('profile2', '/profile/path/btcli-profile2.yaml', "456 bytes")
+    ]
+
+    with patch('bittensor.__console__.print') as mock_print:
+        ProfileListCommand.print_profile_details(cli_mock, profile_path, profile_details)
+        # Here you would validate the actual table printed, which can be complex
+        # depending on how the Table object is implemented and used.
+        # For simplicity, we're just checking if the print method was called.
+        assert mock_print.call_count == 1
+        table = mock_print.call_args.args[0]
+        assert table.row_count == 2
