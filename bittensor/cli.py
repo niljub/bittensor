@@ -35,7 +35,9 @@ from .commands import (
     NewHotkeyCommand,
     NominateCommand,
     OverviewCommand,
-    ProfileCommand,
+    ProfileCreateCommand,
+    ProfileListCommand,
+    ProfileShowCommand,
     PowRegisterCommand,
     ProposalsCommand,
     RegenColdkeyCommand,
@@ -52,7 +54,6 @@ from .commands import (
     RunFaucetCommand,
     SenateCommand,
     SetIdentityCommand,
-    SetTakeCommand,
     StakeCommand,
     StakeShow,
     SubnetGetHyperparamsCommand,
@@ -94,6 +95,7 @@ ALIAS_TO_COMMAND = {
     "i": "info",
     "info": "info",
     "profile": "profile",
+    "p": "profile",
 }
 COMMANDS = {
     "subnets": {
@@ -124,7 +126,6 @@ COMMANDS = {
             "senate": SenateCommand,
             "register": RootRegisterCommand,
             "proposals": ProposalsCommand,
-            "set_take": SetTakeCommand,
             "delegate": DelegateStakeCommand,
             "undelegate": DelegateUnstakeCommand,
             "my_delegates": MyDelegatesCommand,
@@ -198,8 +199,9 @@ COMMANDS = {
         "aliases": ["p"],
         "help": "Commands for creating and viewing profiles.",
         "commands": {
-            "create": ProfileCommand,
-            # "list": ProfileList,
+            "create": ProfileCreateCommand,
+            "list": ProfileListCommand,
+            "show": ProfileShowCommand,
             # "set": ProfileSet,
             # "delete": ProfileDelete,
         },
@@ -260,8 +262,8 @@ class cli:
         # If no_version_checking is not set or set as False in the config, version checking is done.
         if not self.config.get("no_version_checking", d=True):
             try:
-                bittensor.utils.check_version()
-            except bittensor.utils.VersionCheckError:
+                bittensor.utils.version_checking()
+            except:
                 # If version checking fails, inform user with an exception.
                 raise RuntimeError(
                     "To avoid internet-based version checking, pass --no_version_checking while running the CLI."
@@ -325,7 +327,6 @@ class cli:
         if len(args) == 0:
             parser.print_help()
             sys.exit()
-
         return bittensor.config(parser, args=args)
 
     @staticmethod
@@ -343,7 +344,7 @@ class cli:
             command_data = COMMANDS[command]
 
             if isinstance(command_data, dict):
-                if config["subcommand"] is not None:
+                if config["subcommand"] != None:
                     command_data["commands"][config["subcommand"]].check_config(config)
                 else:
                     console.print(

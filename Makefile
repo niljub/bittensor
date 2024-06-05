@@ -24,3 +24,6 @@ install-dev:
 
 install-cubit:
 	python3 -m pip install '.[cubit]'
+
+unit-test:
+	pytest ./tests/unit_tests

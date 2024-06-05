@@ -78,7 +78,6 @@ from .delegates import (
     DelegateStakeCommand,
     DelegateUnstakeCommand,
     MyDelegatesCommand,
-    SetTakeCommand,
 )
 from .wallets import (
     NewColdkeyCommand,
@@ -96,7 +95,12 @@ from .inspect import InspectCommand
 from .metagraph import MetagraphCommand
 from .list import ListCommand
 from .misc import UpdateCommand, AutocompleteCommand
-from .profile import ProfileCommand
+from .profile import (
+    ProfileCreateCommand,
+    ProfileListCommand,
+    ProfileShowCommand
+)
+
 from .senate import (
     SenateCommand,
     ProposalsCommand,
