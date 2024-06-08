@@ -33,8 +33,8 @@ class ProfileCreateCommand:
 
     @staticmethod
     def _write_profile(config: "bittensor.config"):
-        path = os.path.expanduser(config.profile["path"])
-        profile_name = config.profile["name"]
+        path = os.path.expanduser(config.profile.path)
+        profile_name = config.profile.name
         try:
             os.makedirs(path, exist_ok=True)
         except Exception as e:
@@ -229,6 +229,51 @@ class ProfilePrintCommand:
     def add_args(parser: argparse.ArgumentParser):
         list_parser = parser.add_parser("print", help="""Print profile""")
         list_parser.set_defaults(func=ProfilePrintCommand.run)
+        list_parser.add_argument(
+            "--profile.name",
+            type=str,
+            help="The name of the profile",
+        )
+        list_parser.add_argument(
+            "--profile.path",
+            type=str,
+            default=defaults.profile.path,
+            help="The path to the profile directory",
+        )
+
+class ProfileUseCommand:
+    """
+    Executes the ``use`` command.
+
+    This class provides functionality to change the active profile.
+    """
+    @staticmethod
+    def run(cli):
+        ProfileUseCommand._run(cli)
+
+    @staticmethod
+    def _run(cli: "bittensor.cli"):
+        profile_name = cli.config.profile.name
+        profile_path = cli.config.profile.path
+        ProfileUseCommand.write_profile_to_disk(profile_name, profile_path)
+
+    @staticmethod
+    def write_profile_to_disk(profile_name, profile_directory):
+        try:
+            file_path = os.path.join(profile_directory, '.btcliprofile')
+            with open(file_path, 'w') as file:
+                file.write(profile_name)
+            bittensor.__console__.print(f"[bold white]Profile set to {profile_name}.")
+        except Exception as e:
+            bittensor.__console__.print(f"[red]Error: Profile not set.[/red]\n[bold white]{e}")
+
+    @staticmethod
+    def check_config(config: "bittensor.config"):
+        return config is not None
+
+    def add_args(parser: argparse.ArgumentParser):
+        list_parser = parser.add_parser("use", help="""Changes active profile""")
+        list_parser.set_defaults(func=ProfileUseCommand.run)
         list_parser.add_argument(
             "--profile.name",
             type=str,

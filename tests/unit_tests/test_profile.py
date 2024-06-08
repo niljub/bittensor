@@ -1,11 +1,10 @@
 # Standard Library
-from copy import deepcopy
 from unittest.mock import patch, MagicMock, mock_open
 from yaml import dump
 
 # 3rd Party
 import pytest
-from munch import Munch
+from munch import Munch, munchify
 
 # Bittensor
 from bittensor.commands.profile import *
@@ -88,7 +87,7 @@ def test_check_config(test_input, expected):
 
 
 def test_write_profile():
-    config = Munch(
+    config = munchify(
         {
             "profile": {
                 "name": "test",
@@ -105,8 +104,8 @@ def test_write_profile():
             "netuid": "1",
         },
     )
-    path = config.profile["path"]
-    name = config.profile["name"]
+    path = config.profile.path
+    name = config.profile.name
 
     # Setup the mock for os.makedirs and open
     with patch("os.makedirs") as mock_makedirs, patch(
@@ -151,7 +150,6 @@ def test_get_profile_details_matching_files():
 
 def test_print_profile_details_empty():
     cli_mock = MagicMock()
-    cli_mock.config.get.return_value = None
     profile_path = '/profile/path'
     profile_details = []
 
@@ -161,7 +159,6 @@ def test_print_profile_details_empty():
 
 def test_print_profile_details_with_data():
     cli_mock = MagicMock()
-    cli_mock.config.get.return_value = None
     profile_path = '/profile/path'
     profile_details = [
         ('profile1', '/profile/path/btcli-profile1.yaml', "123 bytes"),
@@ -179,12 +176,11 @@ def test_print_profile_details_with_data():
 
 def test_print_profile_contents_with_data():
     cli_mock = MagicMock()
-    cli_mock.config.get.return_value = None
     profile_name = "test"
-    profile_contents = Munch(
+    profile_contents = munchify(
         {
             "profile": {
-                "name": "test",
+                "name": f"{profile_name}",
                 "path": "~/.bittensor/profiles/",
             },
             "wallet": {
@@ -207,3 +203,24 @@ def test_print_profile_contents_with_data():
         assert mock_print.call_count == 1
         table = mock_print.call_args.args[0]
         assert table.row_count == 7
+
+def test_write_profile_to_disk_success(monkeypatch):
+    profile_name = "test_profile_name"
+    profile_path = '/profile/path'
+
+    with patch('builtins.open') as mock_open, patch('bittensor.__console__.print') as mock_print:
+        ProfileUseCommand.write_profile_to_disk(profile_name, profile_path)
+
+        mock_open.assert_called_with(f"{profile_path}/.btcliprofile", 'w')
+        #For some reason the return value here is a different instance than when called inside the method
+        #mock_open.return_value.assert_called_with(profile_name)
+        assert f"Profile set to {profile_name}." in mock_print.call_args.args[0]
+
+def test_write_profile_to_disk_permission_error(monkeypatch):
+    profile_name = "test_profile_name"
+    profile_path = '/profile/path'
+
+    with patch('builtins.open') as mock_open, patch('bittensor.__console__.print') as mock_print:
+        mock_open.side_effect = PermissionError()
+        ProfileUseCommand.write_profile_to_disk(profile_name, profile_path)
+        assert f"Error: Profile not set." in mock_print.call_args.args[0]
