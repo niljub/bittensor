@@ -36,6 +36,7 @@ from .commands import (
     NominateCommand,
     OverviewCommand,
     ProfileCreateCommand,
+    ProfileDeleteCommand,
     ProfileListCommand,
     ProfilePrintCommand,
     ProfileUseCommand,
@@ -204,7 +205,7 @@ COMMANDS = {
             "list": ProfileListCommand,
             "show": ProfilePrintCommand,
             "use": ProfileUseCommand,
-            # "delete": ProfileDelete,
+            "delete": ProfileDeleteCommand,
         },
     },
 }

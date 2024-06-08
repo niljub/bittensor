@@ -97,6 +97,7 @@ from .list import ListCommand
 from .misc import UpdateCommand, AutocompleteCommand
 from .profile import (
     ProfileCreateCommand,
+    ProfileDeleteCommand,
     ProfileListCommand,
     ProfilePrintCommand,
     ProfileUseCommand,

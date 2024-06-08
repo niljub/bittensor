@@ -164,15 +164,18 @@ def test_print_profile_details_with_data():
         ('profile1', '/profile/path/btcli-profile1.yaml', "123 bytes"),
         ('profile2', '/profile/path/btcli-profile2.yaml', "456 bytes")
     ]
+    active_profile = "profile1"
 
     with patch('bittensor.__console__.print') as mock_print:
-        ProfileListCommand.print_profile_details(cli_mock, profile_path, profile_details)
+        ProfileListCommand.print_profile_details(cli_mock, profile_path, profile_details, active_profile)
         # Here you would validate the actual table printed, which can be complex
         # depending on how the Table object is implemented and used.
         # For simplicity, we're just checking if the print method was called.
         assert mock_print.call_count == 1
         table = mock_print.call_args.args[0]
         assert table.row_count == 2
+        # I don't know how to get the cell contents to check the Active column.
+        # Maybe print to a string and pattern match it.
 
 def test_print_profile_contents_with_data():
     cli_mock = MagicMock()

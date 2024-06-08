@@ -18,9 +18,8 @@ class ProfileCreateCommand:
     """
     Executes the ``create`` command.
 
-    This class provides functionality to create a profile by prompting the user to enter various attributes.
-    The entered attributes are then written to a profile file.
-
+    This class provides functionality to create a profile.
+    A profile saves all the command line arguments entered to a file which are entered in the config on future calls.
     """
 
     @staticmethod
@@ -91,6 +90,68 @@ class ProfileCreateCommand:
         bittensor.subtensor.add_args(list_parser)
         bittensor.wallet.add_args(list_parser)
 
+class ProfileDeleteCommand:
+    """
+    Executes the ``delete`` command.
+
+    This class provides functionality to delete a profile.
+    If the deleted profile would be the active profile the active profile is also set to None.
+    """
+
+    @staticmethod
+    def run(cli):
+        ProfileDeleteCommand._run(cli)   
+
+    @staticmethod
+    def _run(cli: "bittensor.cli"):
+        ProfileDeleteCommand._delete_profile(cli.config)
+
+    @staticmethod
+    def _delete_profile(config: "bittensor.config"):
+        profile_path = os.path.expanduser(config.profile.path)
+        profile_name = config.profile.name
+        if not os.path.isdir(profile_path):
+            bittensor.__console__.print(f"[red]profile.path is not a directory:[/red][bold white] {profile_path}")
+            return
+
+        try:
+            full_path = os.path.join({profile_path}, f"btcli-{profile_name}.yaml")
+            os.remove(full_path, "w+")
+            bittensor.__console__.print(f":white_check_mark: [bold green]Profile {profile_name} deleted[/bold green]")
+        except Exception as e:
+            bittensor.__console__.print(
+                f":cross_mark: [red]Failed to delete profile[/red]:[bold white] {e}"
+            )
+            return
+
+        #Checks if the active profile was the one deleted and deletes the active profile file if it was.
+        active_profile_full_path = os.path.join({profile_path}, ".btcliprofile")
+        with open(active_profile_full_path, "r") as f:
+            active_profile = f.read()
+            if(active_profile == profile_name):
+                os.remove(active_profile_full_path, "w+")
+
+    @staticmethod
+    def check_config(config: "bittensor.config"):
+        return config is not None
+
+    @staticmethod
+    def add_args(parser: argparse.ArgumentParser):
+        list_parser = parser.add_parser("delete", help="""Delete profile""")
+        list_parser.set_defaults(func=ProfileDeleteCommand.run)
+        list_parser.add_argument(
+            "--profile.name",
+            type=str,
+            default=defaults.profile.name,
+            help="The name of the profile",
+        )
+        list_parser.add_argument(
+            "--profile.path",
+            type=str,
+            default=defaults.profile.path,
+            help="The path to the profile directory",
+        )
+
 class ProfileListCommand:
     """
     Executes the ``list`` command.
@@ -107,8 +168,11 @@ class ProfileListCommand:
     def _run(cli: "bittensor.cli"):
         profile_path = os.path.expanduser(cli.config.profile.path)
         profile_details = ProfileListCommand.get_profile_details(profile_path)
-        
-        ProfileListCommand.print_profile_details(cli, profile_path, profile_details)
+        active_profile_full_path = os.path.join({profile_path}, ".btcliprofile")
+        with open(active_profile_full_path, "r") as f:
+            active_profile = f.read()
+
+        ProfileListCommand.print_profile_details(cli, profile_path, profile_details, active_profile)
     
     @staticmethod
     def get_profile_details(profile_path):
@@ -137,7 +201,7 @@ class ProfileListCommand:
             return
     
     @staticmethod
-    def print_profile_details(cli, profile_path, profile_details):
+    def print_profile_details(cli, profile_path, profile_details, active_profile):
         if not profile_details:
             bittensor.__console__.print(
                 f":cross_mark: [red]No profiles found in '{profile_path}'[/red]"
@@ -157,8 +221,7 @@ class ProfileListCommand:
         table.add_column("Path", style="white", justify="center", min_width=10)
         table.add_column("Size", style="white", justify="center", min_width=10)
         for profile in profile_details:
-            #table.add_row("", profile[0], profile[1], profile[2])
-            table.add_row("", *profile)
+            table.add_row("*" if active_profile == profile[0] else "", *profile)
         bittensor.__console__.print(table)
 
     @staticmethod
@@ -180,7 +243,7 @@ class ProfilePrintCommand:
     """
     Executes the ``print`` command.
 
-    This class provides functionality to print the content of a profile.
+    This class provides functionality to print the content of a profile to a table.
     """
 
     @staticmethod
@@ -246,6 +309,7 @@ class ProfileUseCommand:
     Executes the ``use`` command.
 
     This class provides functionality to change the active profile.
+    The active profile is stored in the .btcliprofile file in the profile.directory of the config.
     """
     @staticmethod
     def run(cli):
@@ -254,7 +318,7 @@ class ProfileUseCommand:
     @staticmethod
     def _run(cli: "bittensor.cli"):
         profile_name = cli.config.profile.name
-        profile_path = cli.config.profile.path
+        profile_path = os.path.expanduser(cli.config.profile.path)
         ProfileUseCommand.write_profile_to_disk(profile_name, profile_path)
 
     @staticmethod
@@ -263,7 +327,7 @@ class ProfileUseCommand:
             file_path = os.path.join(profile_directory, '.btcliprofile')
             with open(file_path, 'w') as file:
                 file.write(profile_name)
-            bittensor.__console__.print(f"[bold white]Profile set to {profile_name}.")
+            bittensor.__console__.print(f"[bold green]Profile set to {profile_name}.[/bold green]")
         except Exception as e:
             bittensor.__console__.print(f"[red]Error: Profile not set.[/red]\n[bold white]{e}")
 
