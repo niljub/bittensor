@@ -364,7 +364,7 @@ class SubnetListCommand:
             f"[white]{bittensor.Balance.get_unit(1)}", style="dark_cyan", justify="center"
         )
         table.add_column(
-            "[white]price",
+            f"[white]({bittensor.Balance.unit}/{bittensor.Balance.get_unit(1)})",
             f"{bittensor.Balance.from_tao(total_price)!s:8.8}",
             footer_style="white",
             style="yellow",
