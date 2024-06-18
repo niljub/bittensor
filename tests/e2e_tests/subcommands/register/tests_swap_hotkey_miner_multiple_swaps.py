@@ -190,7 +190,7 @@ async def test_swap_hotkey_validator_owner(local_chain):
     # generate new guid names for hotkeys
     new_hotkey_names = [str(uuid.uuid4()) for _ in range(3)]
 
-    # create and register new hotkeys
+    # create new hotkeys
     for new_hotkey_name in new_hotkey_names:
         bob_exec_command(
             NewHotkeyCommand,
@@ -207,20 +207,9 @@ async def test_swap_hotkey_validator_owner(local_chain):
                 "True",
             ],
         )
-        # Register the new hotkey to the subnet
-        bob_exec_command(
-            RegisterCommand,
-            [
-                "s",
-                "register",
-                "--netuid",
-                "1",
-                "--wallet.hotkey",
-                new_hotkey_name,
-            ],
-        )
 
     # swap hotkeys
+    current_hotkey = bob_wallet.hotkey_str
     for new_hotkey_name in new_hotkey_names:
         bob_exec_command(
             SwapHotkeyCommand,
@@ -230,7 +219,7 @@ async def test_swap_hotkey_validator_owner(local_chain):
                 "--wallet.name",
                 bob_wallet.name,
                 "--wallet.hotkey",
-                bob_wallet.hotkey_str,
+                current_hotkey,
                 "--wallet.hotkey_b",
                 new_hotkey_name,
                 "--wait_for_inclusion",
@@ -239,6 +228,12 @@ async def test_swap_hotkey_validator_owner(local_chain):
                 "True",
             ],
         )
+
+        # Update current hotkey to the newly swapped hotkey
+        current_hotkey = new_hotkey_name
+
+        # Sleep to allow the metagraph to refresh with the latest data
+        await asyncio.sleep(5)
 
         # get latest metagraph
         metagraph = bittensor.metagraph(netuid=1, network="ws://localhost:9945")
