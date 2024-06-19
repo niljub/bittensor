@@ -413,7 +413,7 @@ class subtensor:
         """
         if network is None:
             return None, None
-        if network in ["dtao", "finney", "local", "test", "dev", "archive"]:
+        if network in ["local", "finney", "local", "test", "dev", "archive"]:
             if network == "finney":
                 # Kiru Finney staging network.
                 return network, bittensor.__finney_entrypoint__
