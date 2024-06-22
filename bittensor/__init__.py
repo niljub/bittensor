@@ -90,7 +90,7 @@ __ss58_address_length__ = 48
 
 __networks__ = ["dtao", "local", "finney", "test", "archive", "dev"]
 
-__dtao_entrypoint__ = "wss://dtao-demo.chain.opentensor.ai:443"
+__dtao_entrypoint__ = "ws://127.0.0.1:9944"
 
 __finney_entrypoint__ = "wss://entrypoint-finney.opentensor.ai:443"
 
