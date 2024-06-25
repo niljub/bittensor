@@ -22,6 +22,7 @@ async def setup_wallet(uri: str):
     wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=True)
 
     async def exec_command(command, extra_args: List[str], function: str = "run"):
+        
         parser = bittensor.cli.__create_parser__()
         args = extra_args + [
             "--no_prompt",
@@ -37,9 +38,9 @@ async def setup_wallet(uri: str):
             args=args,
         )
         async with bittensor.cli(config) as cli_instance:
-            # Dynamically call the specified function on the command
-            result = getattr(command, function)(cli_instance)
-            return result
+            runner = getattr(command, function)
+            result = runner(cli_instance)
+            await result
 
     return keypair, exec_command, wallet
 
