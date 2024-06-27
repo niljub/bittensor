@@ -26,8 +26,16 @@ from typing import Union, Tuple
 import bittensor.utils.weight_utils as weight_utils
 from bittensor.btlogging.defines import BITTENSOR_LOGGER_NAME
 from bittensor.utils.registration import torch, use_torch
+from bittensor.utils.subtensor import wait_epoch
+from bittensor.extrinsics.commit_weights import commit_weights_extrinsic, reveal_weights_extrinsic
 
 logger = logging.getLogger(BITTENSOR_LOGGER_NAME)
+
+
+
+import asyncio
+
+
 
 
 def set_weights_extrinsic(
@@ -64,7 +72,7 @@ def set_weights_extrinsic(
             If ``true``, the call waits for confirmation from the user before proceeding.
     Returns:
         success (bool):
-            Flag is ``true`` if extrinsic was finalized or uncluded in the block. If we did not wait for finalization / inclusion, the response is ``true``.
+            Flag is ``true`` if extrinsic was finalized or included in the block. If we did not wait for finalization / inclusion, the response is ``true``.
     """
     # First convert types.
     if use_torch():
@@ -92,45 +100,74 @@ def set_weights_extrinsic(
         ):
             return False, "Prompt refused."
 
-    with bittensor.__console__.status(
-        ":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)
-    ):
-        try:
-            success, error_message = subtensor._do_set_weights(
-                wallet=wallet,
-                netuid=netuid,
-                uids=weight_uids,
-                vals=weight_vals,
-                version_key=version_key,
-                wait_for_finalization=wait_for_finalization,
-                wait_for_inclusion=wait_for_inclusion,
+    # Check if the commit-reveal mechanism is active for the given netuid.
+    commit_reveal_enabled = subtensor.commit_reveal_active(netuid=netuid)
+    if commit_reveal_enabled:
+
+        interval = subtensor.commit_reveal_interval(netuid=netuid)
+        # Attempt to commit the weights to the blockchain.
+        commit_hash = commit_weights_extrinsic(subtensor, wallet, netuid, weight_uids, weight_vals, wait_for_inclusion, wait_for_finalization, prompt)
+        if commit_hash:
+            # Define an asynchronous function to handle the weight reveal after a delay.
+            async def reveal_weights():
+                # Wait for the specified number of epochs before revealing the weights
+                wait_epoch(interval, subtensor)
+                # Proceed to reveal the weights using the commit hash.
+                return reveal_weights_extrinsic(subtensor, wallet, netuid, commit_hash, wait_for_inclusion, wait_for_finalization, prompt)
+            
+            # Get the default event loop for asynchronous operations.
+            loop = asyncio.get_event_loop()
+            # Execute the reveal_weights coroutine and wait for its completion.
+            success, error_message = loop.run_until_complete(reveal_weights())
+
+            bittensor.logging.success(
+                prefix="Commit-Reveal",
+                suffix="<green>Weights committed and revealed successfully.</green>"
             )
 
-            if not wait_for_finalization and not wait_for_inclusion:
-                return True, "Not waiting for finalization or inclusion."
+        else:
+            # Return an error if the commit operation failed.
+            return False, "Failed to commit weights."
+    else:
+        with bittensor.__console__.status(
+            ":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)
+        ):
+            try:
+                success, error_message = subtensor._do_set_weights(
+                    wallet=wallet,
+                    netuid=netuid,
+                    uids=weight_uids,
+                    vals=weight_vals,
+                    version_key=version_key,
+                    wait_for_finalization=wait_for_finalization,
+                    wait_for_inclusion=wait_for_inclusion,
+                )
 
-            if success is True:
+                if not wait_for_finalization and not wait_for_inclusion:
+                    return True, "Not waiting for finalization or inclusion."
+
+                if success is True:
+                    bittensor.__console__.print(
+                        ":white_heavy_check_mark: [green]Finalized[/green]"
+                    )
+                    bittensor.logging.success(
+                        prefix="Set weights",
+                        suffix="<green>Finalized: </green>" + str(success),
+                    )
+                    return True, "Successfully set weights and Finalized."
+                else:
+                    bittensor.logging.error(
+                        msg=error_message,
+                        prefix="Set weights",
+                        suffix="<red>Failed: </red>",
+                    )
+                    return False, error_message
+
+            except Exception as e:
                 bittensor.__console__.print(
-                    ":white_heavy_check_mark: [green]Finalized[/green]"
+                    ":cross_mark: [red]Failed[/red]: error:{}".format(e)
                 )
-                bittensor.logging.success(
-                    prefix="Set weights",
-                    suffix="<green>Finalized: </green>" + str(success),
+                bittensor.logging.warning(
+                    prefix="Set weights", suffix="<red>Failed: </red>" + str(e)
                 )
-                return True, "Successfully set weights and Finalized."
-            else:
-                bittensor.logging.error(
-                    msg=error_message,
-                    prefix="Set weights",
-                    suffix="<red>Failed: </red>",
-                )
-                return False, error_message
-
-        except Exception as e:
-            bittensor.__console__.print(
-                ":cross_mark: [red]Failed[/red]: error:{}".format(e)
-            )
-            bittensor.logging.warning(
-                prefix="Set weights", suffix="<red>Failed: </red>" + str(e)
-            )
-            return False, str(e)
+                return False, str(e)

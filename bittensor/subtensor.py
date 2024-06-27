@@ -3195,6 +3195,50 @@ class Subtensor:
 
         return result.value
 
+    def commit_reveal_active(self, netuid: int, block: Optional[int] = None) -> Optional[bool]:
+        """
+        Determines if the commit-reveal mechanism for weight setting is currently active for a specified subnet.
+
+        This function queries the blockchain to find out if the commit-reveal mechanism for weight setting is enabled.
+        This mechanism is crucial for ensuring that weight updates are committed securely before being revealed,
+        adding an additional layer of security and integrity to the process.
+
+        Args:
+            netuid (int): The unique identifier of the subnet for which to check the status.
+            block (Optional[int]): The blockchain block number at which to check the status. If None, the latest block is used.
+
+        Returns:
+            Optional[bool]: True if the commit-reveal mechanism is enabled, False if it is disabled, and None if the
+            information could not be retrieved (e.g., if the subnet does not exist).
+
+        Example:
+            >>> subtensor.commit_reveal_active(1)
+            True
+        """
+        call = self._get_hyperparameter(param_name="commit_reveal_weights_enabled", netuid=netuid, block=block)
+        return None if call is None else bool(call)
+
+
+    def commit_reveal_interval(self, netuid: int, block: Optional[int] = None) -> Optional[int]:
+        """
+        Retrieves the interval for the commit-reveal mechanism for a specified subnet.
+
+        This function queries the blockchain to determine the interval at which the commit-reveal mechanism
+        for weight setting is triggered. This interval is crucial for coordinating the timing of secure weight
+        updates across the network.
+
+        Args:
+            netuid (int): The unique identifier of the subnet for which to check the interval.
+            block (Optional[int]): The blockchain block number at which to check the interval. If None, the latest block is used.
+
+        Returns:
+            Optional[int]: The interval of the commit-reveal mechanism if it is enabled and set, None if the
+            information could not be retrieved or if the subnet does not exist.
+        """
+        interval = self._get_hyperparameter(param_name="commit_reveal_weights_interval", netuid=netuid, block=block)
+        return None if interval is None else int(interval)
+
+
     def rho(self, netuid: int, block: Optional[int] = None) -> Optional[int]:
         """
         Retrieves the 'Rho' hyperparameter for a specified subnet within the Bittensor network. 'Rho' represents the

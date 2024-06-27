@@ -137,3 +137,17 @@ def get_subtensor_errors(
         return subtensor_errors_map
     else:
         return cached_errors_map.get("errors", {})
+
+def wait_epoch(interval, subtensor):
+    current_block = subtensor.get_current_block()
+    next_tempo_block_start = (current_block - (current_block % interval)) + interval
+    while current_block < next_tempo_block_start:
+        time.sleep(1)  # Wait for 1 second before checking the block number again
+        current_block = subtensor.get_current_block()
+        if current_block % 10 == 0:
+            print(
+                f"Current Block: {current_block}  Next tempo at: {next_tempo_block_start}"
+            )
+            logging.info(
+                f"Current Block: {current_block}  Next tempo at: {next_tempo_block_start}"
+            )
