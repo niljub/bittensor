@@ -29,6 +29,7 @@ from bittensor.utils.registration import torch, use_torch
 from bittensor.utils.subtensor import wait_epoch
 from bittensor.extrinsics.commit_weights import commit_weights_extrinsic, reveal_weights_extrinsic
 
+
 logger = logging.getLogger(BITTENSOR_LOGGER_NAME)
 
 
@@ -105,24 +106,28 @@ def set_weights_extrinsic(
     if commit_reveal_enabled:
 
         interval = subtensor.commit_reveal_interval(netuid=netuid)
+
+        # Generate a random salt of specified length to be used in the commit-reveal process
+        salt_length = 8
+        salt = list(os.urandom(salt_length))
+
         # Attempt to commit the weights to the blockchain.
-        commit_hash = commit_weights_extrinsic(subtensor, wallet, netuid, weight_uids, weight_vals, wait_for_inclusion, wait_for_finalization, prompt)
-        if commit_hash:
+        success, msg = subtensor.commit_weights(wallet, netuid, salt, wait_for_inclusion, wait_for_finalization, prompt) 
+        if success is True:
             # Define an asynchronous function to handle the weight reveal after a delay.
             async def reveal_weights():
                 # Wait for the specified number of epochs before revealing the weights
                 wait_epoch(interval, subtensor)
                 # Proceed to reveal the weights using the commit hash.
-                return reveal_weights_extrinsic(subtensor, wallet, netuid, commit_hash, wait_for_inclusion, wait_for_finalization, prompt)
+                return subtensor.reveal_weights(wallet, netuid, salt, wait_for_inclusion, wait_for_finalization, prompt)
             
-            # Get the default event loop for asynchronous operations.
-            loop = asyncio.get_event_loop()
+
             # Execute the reveal_weights coroutine and wait for its completion.
-            success, error_message = loop.run_until_complete(reveal_weights())
+            success, msg = asyncio.run(reveal_weights())
 
             bittensor.logging.success(
                 prefix="Commit-Reveal",
-                suffix="<green>Weights committed and revealed successfully.</green>"
+                suffix=f"<green>Weights committed and revealed successfully. {msg}</green>"
             )
 
         else:
