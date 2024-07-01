@@ -47,121 +47,163 @@ class StakeList:
     @staticmethod
     def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
         wallet = bittensor.wallet(config=cli.config)
-        substakes = subtensor.get_substake_for_coldkey(
-            coldkey_ss58=wallet.coldkeypub.ss58_address
-        )
-        netuids = subtensor.get_all_subnet_netuids()
-
-        # Get registered delegates details.
-        registered_delegate_info: Optional[DelegatesDetails] = get_delegates_details(
-            url=bittensor.__delegates_details_url__
-        )
-
-        # Token pricing info.
-        dynamic_info = subtensor.get_dynamic_info()
         
-        # Iterate over substakes and aggregate them by hotkey.
-        hotkeys_to_substakes: typing.Dict[str, typing.List[typing.Dict]] = {}
-        for substake in substakes:
-            hotkey = substake["hotkey"]
-            if substake["stake"].rao == 0: continue
-            if hotkey not in hotkeys_to_substakes:
-                hotkeys_to_substakes[hotkey] = []
-            hotkeys_to_substakes[hotkey].append( substake )
-            
-            
-        def table_substakes( hotkey:str, substakes: typing.List[typing.Dict] ):
-            # Create table structure.
-            name = registered_delegate_info[hotkey].name + f" ({hotkey})" if hotkey in registered_delegate_info else hotkey
-            table = Table(show_footer=True, pad_edge=False, box=None, expand=False, title=f"{name}")
-            table.add_column(f"[white]", footer_style="overline white", style="grey89")
-            table.add_column(f"[white]", footer_style="white", style="light_goldenrod1", justify="center", width=5, no_wrap=True)
-            table.add_column(f"[white]({bittensor.Balance.unit}/{bittensor.Balance.get_unit(1)})", footer_style="white", style="light_goldenrod2", justify="center" )
-            table.add_column(f"[white]{bittensor.Balance.get_unit(1)}", footer_style="overline white", style="green",  justify="center" )
-            table.add_column(f"[white]{bittensor.Balance.unit}", footer_style="overline white", style="blue", justify="center" )
-            table.add_column(f"[white]Swap({bittensor.Balance.get_unit(1)}) -> {bittensor.Balance.unit}", footer_style="overline white", style="blue", justify="center" )
-            table.add_column(f"[white]Slippage (%)", footer_style="overline white", style="blue", justify="center" )
-            # table.add_column(f"[white]Subnet TAO{bittensor.Balance.unit}", footer_style="white", style="blue", justify="center" )
-            # table.add_column(f"[white]P({bittensor.Balance.unit},", style="cornflower_blue", justify="right")
-            # table.add_column(f"[white]{bittensor.Balance.get_unit(1)})", style="green", justify="left")
-            # table.add_column(f"[white]Issuance({bittensor.Balance.get_unit(1)})", style="aquamarine3", justify="center")
-            table.add_column(f"[white]Ownership({bittensor.Balance.get_unit(1)})", style="aquamarine3", justify="center")
-            table.add_column(f"[white]GDT({bittensor.Balance.unit})", style="aquamarine3", justify="center")
-            for substake in substakes:
-                netuid = substake['netuid']
-                pool = dynamic_info[netuid]
-                symbol = f"{bittensor.Balance.get_unit(netuid)}\u200E"
-                price = "{:.4f}{}".format( pool.price.__float__(), f"τ/{bittensor.Balance.get_unit(netuid)}\u200E") if pool.is_dynamic else f"{1.0}τ/{symbol}"
-                alpha_value = bittensor.Balance.from_rao( int(substake['stake']) ).set_unit(netuid)
-                tao_value = pool.alpha_to_tao(alpha_value)
-                swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage( substake['stake'] )
-                if pool.is_dynamic:
-                    slippage_percentage = 100 * float(slippage) / float(slippage + swapped_tao_value) if slippage + swapped_tao_value != 0 else 0
-                    slippage_percentage = f"{slippage_percentage:.4f}%"
-                else:
-                    slippage_percentage = 'N/A'                
-                tao_locked = pool.tao_reserve if pool.is_dynamic else subtensor.get_total_subnet_stake(netuid).set_unit(netuid)
-                issuance = pool.alpha_outstanding if pool.is_dynamic else tao_locked
-                alpha_ownership = "{:.4f}".format((alpha_value.tao / issuance.tao) * 100)
-                tao_ownership = bittensor.Balance.from_tao((alpha_value.tao / issuance.tao) * tao_locked.tao)
-                row = [
-                    str(netuid), # Number
-                    symbol, # Symbol
-                    price, # Price
-                    f"[dark_sea_green]{ alpha_value }", # Alpha value
-                    f"[light_slate_blue]{ tao_value }[/light_slate_blue]", # Tao equiv
-                    f"[cadet_blue]{ swapped_tao_value }[/cadet_blue]", # Swap amount.
-                    f"[indian_red]{ slippage_percentage }[/indian_red]", # Slippage.
-                    # str( bittensor.Balance.from_tao( tao_locked.tao ) ), # Tao on network
-                    # "P(" + str( pool.tao_reserve ) + ",", # Pool tao
-                    # str( pool.alpha_reserve ) + ")", # Pool alpha
-                    # str( pool.alpha_outstanding if pool.is_dynamic else tao_locked ), # Pool alpha Outstanding.
-                    f"[light_salmon3]{alpha_ownership}%[/light_salmon3]", # Ownership.
-                    f"[medium_purple]{tao_ownership}[/medium_purple]" # Tao ownership.
-                ]
-                table.add_row(*row)
-            bittensor.__console__.print(table)
+        try:
+            while True:
+                
+                subnets: typing.List[bittensor.SubnetInfoV2] = subtensor.get_all_subnets_info_v2()
+                
+                substakes = subtensor.get_substake_for_coldkey(
+                    coldkey_ss58=wallet.coldkeypub.ss58_address
+                )
 
-        # Print help table
-        htable = Table(show_footer=False, pad_edge=False, box=None, expand=False, title="Help")
-        htable.add_column("Column")
-        htable.add_column("Details")
-        htable.add_row(*[
-            f"[white]({bittensor.Balance.unit}/{bittensor.Balance.get_unit(1)})",
-            "Subnet token current price"
-        ])
-        htable.add_row(*[
-            f"[white]{bittensor.Balance.get_unit(1)}",
-            "Subnet token balance"
-        ])
-        htable.add_row(*[
-            f"[white]{bittensor.Balance.unit}",
-            f"Subnet token balance converted to {bittensor.Balance.unit} using current price"
-        ])
-        htable.add_row(*[
-            f"[white]Swap({bittensor.Balance.get_unit(1)}) -> {bittensor.Balance.unit}",
-            f"{bittensor.Balance.unit} that will be received if full balance is unstaked for this subnet (with slippage)"
-        ])
-        htable.add_row(*[
-            f"[white]Slippage (%)",
-            f"Slippage percentage (if full balance is unstaked)"
-        ])
-        htable.add_row(*[
-            f"[white]Ownership({bittensor.Balance.get_unit(1)})",
-            f"Percentage of total Alpha owned in this subnet"
-        ])
-        htable.add_row(*[
-            f"[white]GDT({bittensor.Balance.unit})",
-            f"Global Dynamic Tao owned in this subnet"
-        ])
-        bittensor.__console__.print("")
-        bittensor.__console__.print(htable)
-        bittensor.__console__.print("")
+                # Get registered delegates details.
+                registered_delegate_info: Optional[DelegatesDetails] = get_delegates_details(
+                    url=bittensor.__delegates_details_url__
+                )
+                
+                # Iterate over substakes and aggregate them by hotkey.
+                hotkeys_to_substakes: typing.Dict[str, typing.List[typing.Dict]] = {}
+                for substake in substakes:
+                    hotkey = substake["hotkey"]
+                    if substake["stake"].rao == 0: continue
+                    if hotkey not in hotkeys_to_substakes:
+                        hotkeys_to_substakes[hotkey] = []
+                    hotkeys_to_substakes[hotkey].append( substake )
+                    
+                
+                def table_substakes( hotkey:str, substakes: typing.List[typing.Dict] ):
+                    # Create table structure.
+                    name = registered_delegate_info[hotkey].name + f" ({hotkey})" if hotkey in registered_delegate_info else hotkey
+                    table = Table(
+                        title=f"{name}",
+                        width=bittensor.__console__.width - 5,
+                        safe_box=True,
+                        padding=(0, 1),
+                        collapse_padding=False,
+                        pad_edge=True,
+                        expand=True,
+                        show_header=True,
+                        show_footer=True,
+                        show_edge=False,
+                        show_lines=False,
+                        leading=0,
+                        style="none",
+                        row_styles=None,
+                        header_style="bold",
+                        footer_style="bold",
+                        border_style="rgb(7,54,66)",
+                        title_style="bold magenta",
+                        title_justify="center",
+                        highlight=False
+                    )
+                    table.add_column(f"[white]mechanism", footer_style="white", style="rgb(253,246,227)", no_wrap=True, justify="center")
+                    table.add_column(f"[white]netuid", footer_style="overline white", style="rgb(253,246,227)", no_wrap=True, justify="center")
+                    table.add_column(f"[white]symbol", footer_style="overline white", style="light_goldenrod1", no_wrap=True, justify="center")
+                    table.add_column(f"[white]{bittensor.Balance.get_unit(1)}", footer_style="overline white", style="rgb(38,139,210)", no_wrap=True, justify="center")
+                    table.add_column(f"[white]{bittensor.Balance.get_unit(1)} -> {bittensor.Balance.unit} ", footer_style="white", style="rgb(181,137,0)", no_wrap=True, justify="center")
+                    table.add_column(f"[white]{bittensor.Balance.unit}", footer_style="overline white", style="rgb(220,50,47)", no_wrap=True, justify="center")
+                    table.add_column(f"[white]Δ{bittensor.Balance.unit}", style="rgb(133,153,0)", no_wrap=True, justify="right")
+                    
+                    rao_rows = []
+                    finney_rows = []
+                    
+                    for substake in substakes:
+                        netuid = substake['netuid']
+                        pool = subnets[netuid].dynamic_pool
+                        symbol = f"{bittensor.Balance.get_unit(netuid)}\u200E"
+                        price = "{:.4f}{}".format( pool.price.__float__(), f"τ/{bittensor.Balance.get_unit(netuid)}\u200E") if pool.is_dynamic else f"{1.0}τ/{symbol}"
+                        alpha_value = bittensor.Balance.from_rao( int(substake['stake']) ).set_unit(netuid)
+                        tao_value = pool.alpha_to_tao(alpha_value)
+                        swapped_tao_value, slippage = pool.alpha_to_tao_with_slippage( substake['stake'] )
+                        if pool.is_dynamic:
+                            slippage_percentage = 100 * float(slippage) / float(slippage + swapped_tao_value) if slippage + swapped_tao_value != 0 else 0
+                            slippage_percentage = f"{slippage_percentage:.4f}%"
+                        else:
+                            slippage_percentage = 'N/A'                
+                        tao_locked = pool.tao_reserve if pool.is_dynamic else subtensor.get_total_subnet_stake(netuid).set_unit(netuid)
+                        issuance = pool.alpha_outstanding if pool.is_dynamic else tao_locked
+                        alpha_ownership = "{:.4f}".format((alpha_value.tao / issuance.tao) * 100)
+                        tao_ownership = bittensor.Balance.from_tao((alpha_value.tao / issuance.tao) * tao_locked.tao)
+                        row = [
+                            "", # Mechanism
+                            str(netuid), # Number
+                            symbol, # Symbol
+                            f"[dark_sea_green]{ alpha_value }", # Alpha value
+                            price, # Price
+                            f"[cadet_blue]{ swapped_tao_value }[/cadet_blue] (-[indian_red]{ slippage_percentage }[/indian_red])", # Swap amount.
+                            f"[medium_purple]{tao_ownership}[/medium_purple]", # Tao ownership.
+                        ]
+                        if pool.is_dynamic:
+                            rao_rows.append(row)
+                        else:
+                            finney_rows.append(row)
+                    
+                    # Add RAO rows first
+                    table.add_row("[bold red]Rao[/bold red]", "", "", "", "", "", "" ) # f"[white]τ{total_price.tao:.4f}{price_arrow}[/white]" 
+                    for row in rao_rows:
+                        table.add_row(*row)
+                    
+                    # Add a separator row if both RAO and Finney rows exist
+                    table.add_row("[bold blue]Finney[/bold blue]", "", "", "", "", "", "" ) 
+                    if rao_rows and finney_rows:
+                        table.add_row(*["" for _ in range(7)])
+                    
+                    # Add Finney rows
+                    for row in finney_rows:
+                        table.add_row(*row)
+                    
+                    bittensor.__console__.print(table, justify="center", width=bittensor.__console__.width)
 
-        # Iterate over each hotkey and make a table
-        for hotkey in hotkeys_to_substakes.keys():
-            table_substakes( hotkey, hotkeys_to_substakes[hotkey] )
-        
+                # Print help table
+                htable = Table(show_footer=False, pad_edge=False, box=None, expand=True, title="Help")
+                htable.add_column("Column")
+                htable.add_column("Details")
+                htable.add_row(*[
+                    f"[rgb(108,113,196)]mechanim",
+                    "[rgb(108,113,196)]The mechanism name"
+                ])
+                htable.add_row(*[
+                    f"[dark_sea_green]netuid",
+                    "[dark_sea_green]The subnet index."
+                ])
+                htable.add_row(*[
+                    f"[light_goldenrod1]symbol",
+                    "[light_goldenrod1]The subnet token symbol."
+                ])
+                htable.add_row(*[
+                    f"[dark_sea_green]{bittensor.Balance.get_unit(1)}",
+                    "[dark_sea_green]The staked token balance"
+                ])
+                htable.add_row(*[
+                    f"[light_goldenrod2]{bittensor.Balance.get_unit(1)} -> {bittensor.Balance.unit}",
+                    "[light_goldenrod2]The exchange rate between tao and the staked token."
+                ])
+                htable.add_row(*[
+                    f"[cadet_blue]{bittensor.Balance.unit}",
+                    f"[cadet_blue]{bittensor.Balance.unit} value attained after unstaking [indian_red](with slippage %)[/indian_red]"
+                ])
+                htable.add_row(*[
+                    f"[medium_purple]Δ{bittensor.Balance.unit}",
+                    f"[medium_purple]The stake's global value (Δ{bittensor.Balance.unit}) across all of Bittensor's mechanisms."
+                ])
+
+                # Iterate over each hotkey and make a table
+                bittensor.__console__.clear()
+                bittensor.__console__.print("")
+                bittensor.__console__.print("")
+                for hotkey in hotkeys_to_substakes.keys():
+                    table_substakes( hotkey, hotkeys_to_substakes[hotkey] )
+                bittensor.__console__.print("")
+                bittensor.__console__.print(htable, justify="center", width=bittensor.__console__.width)
+                bittensor.__console__.print("")
+                
+                # Wait for 1 second before refreshing
+                import time
+                time.sleep(1)
+        except KeyboardInterrupt:
+            console.print("Stopped by user.")
+            return
 
 
     @staticmethod

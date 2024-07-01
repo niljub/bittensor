@@ -356,8 +356,8 @@ class subtensor:
         """
         prefix_str = "" if prefix is None else f"{prefix}."
         try:
-            default_network = "dtao"
-            default_chain_endpoint = bittensor.__dtao_entrypoint__
+            default_network = "local"
+            default_chain_endpoint = bittensor.__local_entrypoint__
 
             parser.add_argument(
                 f"--{prefix_str}subtensor.network",
@@ -1273,6 +1273,7 @@ class subtensor:
     def register_subnetwork(
         self,
         wallet: "bittensor.wallet",
+        mechanism_id: int,
         wait_for_inclusion: bool = False,
         wait_for_finalization=True,
         prompt: bool = False,
@@ -1297,6 +1298,7 @@ class subtensor:
         return register_subnetwork_extrinsic(
             self,
             wallet=wallet,
+            mechanism_id = mechanism_id,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
             prompt=prompt,

@@ -24,6 +24,7 @@ from ..params.subnets import HYPERPARAMS
 def register_subnetwork_extrinsic(
     subtensor: "bittensor.subtensor",
     wallet: "bittensor.wallet",
+    mechanism_id: int,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
@@ -69,6 +70,7 @@ def register_subnetwork_extrinsic(
                 call_function="register_network",
                 call_params={
                     "hotkey": wallet.hotkey.ss58_address,
+                    "mechanism": mechanism_id,
                     "immunity_period": 0,
                     "reg_allowed": True,
                 },

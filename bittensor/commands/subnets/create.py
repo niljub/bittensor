@@ -53,10 +53,21 @@ class RegisterSubnetworkCommand:
     def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
         r"""Register a subnetwork"""
         wallet = bittensor.wallet(config=cli.config)
-
+        
+        if not cli.config.is_set("mechanism"):
+            mechanism = Prompt.ask("Enter mechanism", default="STAO", choices=["Finney", "Rao"])
+            cli.config.mechanism = mechanism
+        if mechanism == "Finney":
+            mechanism_id = 0
+        elif mechanism == "Rao":
+            mechanism_id = 1
+        else:
+            raise ValueError(f"Invalid mechanism: {mechanism}")
+            
         # Call register command.
         success = subtensor.register_subnetwork(
             wallet=wallet,
+            mechanism_id = mechanism_id,
             prompt=not cli.config.no_prompt,
         )
         if success and not cli.config.no_prompt:
@@ -85,6 +96,7 @@ class RegisterSubnetworkCommand:
             "create",
             help="""Create a new bittensor subnetwork on this chain.""",
         )
-
+        parser.add_argument("--no_prompt", "--y", "-y", dest = 'no_prompt', required=False, action='store_true', help="""Specify this flag to delegate stake""" )
+        parser.add_argument("--mechanism", required=False, type=str, help="""Select which mechanism to join.""")
         bittensor.wallet.add_args(parser)
         bittensor.subtensor.add_args(parser)
