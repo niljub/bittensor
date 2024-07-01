@@ -18,6 +18,7 @@
 
 import bittensor
 
+import os
 import logging
 import numpy as np
 from numpy.typing import NDArray
@@ -40,6 +41,7 @@ import asyncio
 
 
 def set_weights_extrinsic(
+        
     subtensor: "bittensor.subtensor",
     wallet: "bittensor.wallet",
     netuid: int,
@@ -112,14 +114,14 @@ def set_weights_extrinsic(
         salt = list(os.urandom(salt_length))
 
         # Attempt to commit the weights to the blockchain.
-        success, msg = subtensor.commit_weights(wallet, netuid, salt, wait_for_inclusion, wait_for_finalization, prompt) 
+        success, msg = subtensor.commit_weights(wallet=wallet, netuid=netuid, salt=salt, uids=weight_uids, weights=weight_vals, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, prompt=prompt) 
         if success is True:
             # Define an asynchronous function to handle the weight reveal after a delay.
             async def reveal_weights():
                 # Wait for the specified number of epochs before revealing the weights
                 wait_epoch(interval, subtensor)
                 # Proceed to reveal the weights using the commit hash.
-                return subtensor.reveal_weights(wallet, netuid, salt, wait_for_inclusion, wait_for_finalization, prompt)
+                return subtensor.reveal_weights(wallet=wallet, netuid=netuid, salt=salt, uids=weight_uids, weights=weight_vals, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, prompt=prompt)
             
 
             # Execute the reveal_weights coroutine and wait for its completion.

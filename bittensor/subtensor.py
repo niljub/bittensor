@@ -911,7 +911,7 @@ class Subtensor:
         self,
         wallet: "bittensor.wallet",
         netuid: int,
-        salt: List[int],
+        salt: List[int], #TODO: change order to be consistent with other functions
         uids: Union[NDArray[np.int64], list],
         weights: Union[NDArray[np.int64], list],
         version_key: int = bittensor.__version_as_int__,
