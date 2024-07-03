@@ -57,7 +57,7 @@ class SetWeightCommand:
             subtensor: "bittensor.subtensor" = bittensor.subtensor(
                 config=cli.config, log_verbose=False
             )
-            SetWeightsCommand._run(cli, subtensor)
+            SetWeightCommand._run(cli, subtensor)
         finally:
             if "subtensor" in locals():
                 subtensor.close()

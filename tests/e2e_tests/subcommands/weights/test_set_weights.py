@@ -1,9 +1,6 @@
-
-
-
-import pytest
 import bittensor
 from bittensor.commands import SetWeightCommand, RegisterSubnetworkCommand
+from tests.e2e_tests.utils import setup_wallet
 
 
 def test_set_weights_with_commit_reveal(local_chain):
@@ -20,6 +17,9 @@ def test_set_weights_with_commit_reveal(local_chain):
 
     # Register a subnet to test with
     exec_command(RegisterSubnetworkCommand, ["s", "create"])
+
+    # Verify subnet 1 created successfully
+    assert local_chain.query("SubtensorModule", "NetworksAdded", [1]).serialize()
 
     # Define test parameters
     netuid = 1
