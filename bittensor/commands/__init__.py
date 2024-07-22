@@ -90,7 +90,7 @@ from .wallets import (
     WalletBalanceCommand,
     GetWalletHistoryCommand,
 )
-from .weights import SetWeightCommand, CommitWeightCommand, RevealWeightCommand
+from .weights import SetWeightCommand
 from .transfer import TransferCommand
 from .inspect import InspectCommand
 from .metagraph import MetagraphCommand

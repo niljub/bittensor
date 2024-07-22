@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import datetime
 import bittensor
 
 import os
@@ -24,59 +25,102 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
 from typing import Union, Tuple
-import bittensor.utils.weight_utils as weight_utils
+from bittensor.utils import exec_utils, weight_utils
+from bittensor.utils import commit_reveal_utils
+from bittensor.utils.commit_reveal_utils import RevealData
 from bittensor.btlogging.defines import BITTENSOR_LOGGER_NAME
 from bittensor.utils.registration import torch, use_torch
-from bittensor.utils.subtensor import wait_epoch
-from bittensor.extrinsics.commit_weights import commit_weights_extrinsic, reveal_weights_extrinsic
 
 
 logger = logging.getLogger(BITTENSOR_LOGGER_NAME)
 
 
-
-import asyncio
-
-
-
-
 def set_weights_extrinsic(
-        
     subtensor: "bittensor.subtensor",
     wallet: "bittensor.wallet",
     netuid: int,
     uids: Union[NDArray[np.int64], "torch.LongTensor", list],
     weights: Union[NDArray[np.float32], "torch.FloatTensor", list],
+    salt: list[int] = None,
     version_key: int = 0,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     prompt: bool = False,
 ) -> Tuple[bool, str]:
-    r"""Sets the given weights and values on chain for wallet hotkey account.
+    """
+    Sets the inter-neuronal weights for the specified neuron. This process involves specifying the
+    influence or trust a neuron places on other neurons in the network, which is a fundamental aspect
+    of Bittensor's decentralized learning architecture.
+    
+    This function is crucial in shaping the network's collective intelligence, where each neuron's
+    learning and contribution are influenced by the weights it sets towards others.
 
     Args:
-        subtensor (bittensor.subtensor):
+        subtensor (bittensor.subtensor): 
             Subtensor endpoint to use.
-        wallet (bittensor.wallet):
-            Bittensor wallet object.
-        netuid (int):
+        wallet (bittensor.wallet): 
+            The wallet associated with the neuron setting the weights.
+        netuid (int): 
             The ``netuid`` of the subnet to set weights for.
-        uids (Union[NDArray[np.int64], torch.LongTensor, list]):
-            The ``uint64`` uids of destination neurons.
-        weights (Union[NDArray[np.float32], torch.FloatTensor, list]):
+        uids (Union[NDArray[np.int64], torch.LongTensor, list]): 
+            The list of neuron UIDs that the weights are being set for.
+        weights (Union[NDArray[np.float32], torch.FloatTensor, list]): 
             The weights to set. These must be ``float`` s and correspond to the passed ``uid`` s.
-        version_key (int):
-            The version key of the validator.
-        wait_for_inclusion (bool):
-            If set, waits for the extrinsic to enter a block before returning ``true``, or returns ``false`` if the extrinsic fails to enter the block within the timeout.
-        wait_for_finalization (bool):
-            If set, waits for the extrinsic to be finalized on the chain before returning ``true``, or returns ``false`` if the extrinsic fails to be finalized within the timeout.
-        prompt (bool):
-            If ``true``, the call waits for confirmation from the user before proceeding.
+        salt (list[int], optional): 
+            A list of integers representing the salt to be used in the commit-reveal process.
+        version_key (int, optional): 
+            Version key for compatibility with the network.
+        wait_for_inclusion (bool, optional): 
+            Waits for the transaction to be included in a block.
+        wait_for_finalization (bool, optional): 
+            Waits for the transaction to be finalized on the blockchain.
+        prompt (bool, optional): 
+            If ``True``, prompts for user confirmation before proceeding.
+
     Returns:
-        success (bool):
-            Flag is ``true`` if extrinsic was finalized or included in the block. If we did not wait for finalization / inclusion, the response is ``true``.
+        Tuple[bool, str]: 
+            ``True`` if the setting of weights is successful, False otherwise. And `msg`, a string
+            value describing the success or potential error.
     """
+
+    # Reformat and normalize.
+    weight_uids, weight_vals = _prepare_values(uids, weights)
+
+    # Ask before moving on.
+    formatted_weight_vals = [float(v / 65535) for v in weight_vals]
+    if prompt and not Confirm.ask(f"Do you want to set weights:\n[bold white]  weights: {formatted_weight_vals}\n  uids: {weight_uids}[/bold white ]?"):
+        return False, "Prompt refused."
+
+    # Check if the commit-reveal mechanism is active for the given netuid.
+    if subtensor.commit_reveal_active(netuid=netuid):
+        return _commit_reveal(
+            subtensor,
+            wallet,
+            netuid,
+            weight_uids,
+            weight_vals,
+            formatted_weight_vals,
+            salt,
+            wait_for_inclusion,
+            wait_for_finalization,
+        )
+    else:
+        return _set_weights_without_commit_reveal(
+            subtensor,
+            wallet,
+            netuid,
+            weight_uids,
+            weight_vals,
+            version_key,
+            wait_for_inclusion,
+            wait_for_finalization
+        )
+
+
+def _prepare_values(
+    uids: Union[NDArray[np.int64], "torch.LongTensor", list],
+    weights: Union[NDArray[np.float32], "torch.FloatTensor", list]
+) -> Tuple[NDArray[np.int64], NDArray[np.float32]]:
     # First convert types.
     if use_torch():
         if isinstance(uids, list):
@@ -88,93 +132,170 @@ def set_weights_extrinsic(
             uids = np.array(uids, dtype=np.int64)
         if isinstance(weights, list):
             weights = np.array(weights, dtype=np.float32)
-
-    # Reformat and normalize.
-    weight_uids, weight_vals = weight_utils.convert_weights_and_uids_for_emit(
+    return weight_utils.convert_weights_and_uids_for_emit(
         uids, weights
     )
 
-    # Ask before moving on.
-    if prompt:
-        if not Confirm.ask(
-            "Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format(
-                [float(v / 65535) for v in weight_vals], weight_uids
-            )
-        ):
-            return False, "Prompt refused."
+def _commit_reveal(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    netuid: int,
+    weight_uids: NDArray[np.int64],
+    weight_vals: NDArray[np.float32],
+    salt: list[int],
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool
+) -> Tuple[bool, str]:
+    interval = subtensor.commit_reveal_interval(netuid=netuid)
 
-    # Check if the commit-reveal mechanism is active for the given netuid.
-    commit_reveal_enabled = subtensor.commit_reveal_active(netuid=netuid)
-    if commit_reveal_enabled:
-
-        interval = subtensor.commit_reveal_interval(netuid=netuid)
-
+    if not salt:
         # Generate a random salt of specified length to be used in the commit-reveal process
         salt_length = 8
         salt = list(os.urandom(salt_length))
 
+    try:
         # Attempt to commit the weights to the blockchain.
-        success, msg = subtensor.commit_weights(wallet=wallet, netuid=netuid, salt=salt, uids=weight_uids, weights=weight_vals, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, prompt=prompt) 
-        if success is True:
-            # Define an asynchronous function to handle the weight reveal after a delay.
-            async def reveal_weights():
-                # Wait for the specified number of epochs before revealing the weights
-                wait_epoch(interval, subtensor)
-                # Proceed to reveal the weights using the commit hash.
-                return subtensor.reveal_weights(wallet=wallet, netuid=netuid, salt=salt, uids=weight_uids, weights=weight_vals, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, prompt=prompt)
-            
+        commit_success, commit_msg = subtensor.commit_weights(
+            wallet=wallet,
+            netuid=netuid,
+            salt=salt,
+            uids=weight_uids,
+            weights=weight_vals,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+    except Exception as e:
+        commit_success, commit_msg = False, str(e)
 
-            # Execute the reveal_weights coroutine and wait for its completion.
-            success, msg = asyncio.run(reveal_weights())
+    if commit_success:
+        try:
+            # In case of process execution failure, first create the reveal_data and then save it to a file for recovery
+            reveal_data = RevealData.create(wallet, subtensor, netuid, weight_uids, weight_vals, salt, wait_for_inclusion, wait_for_finalization, interval)
+            commit_reveal_utils.write_reveal_data(reveal_data)
 
-            bittensor.logging.success(
-                prefix="Commit-Reveal",
-                suffix=f"<green>Weights committed and revealed successfully. {msg}</green>"
+            # Attempt executing _reveal function after a delay of 'interval'
+            schedule_success, schedule_msg = exec_utils.exec_after(
+                interval,
+                reveal,
+                wallet,
+                subtensor,
+                netuid,
+                weight_uids,
+                weight_vals,
+                salt,
+                wait_for_inclusion,
+                wait_for_finalization,
+                reveal_data.interval,
+                reveal_data.reveal_time
+            )
+        except Exception as e:
+            schedule_success, schedule_msg = False, str(e)
+
+        if schedule_success:
+            bittensor.__console__.print(":white_heavy_check_mark: [green]Weights hash committed to chain[/green]")
+            bittensor.__console__.print(f":alarm_clock: [dark_orange3]Weights hash reveal scheduled for {reveal_data.reveal_time}[/dark_orange3]")
+            bittensor.__console__.print(f":alarm_clock: [red]WARNING: Turning off your computer will prevent this process from executing!!![/red]")
+            bittensor.__console__.print(f"To retry in case of failure on or after {reveal_data.reveal_time} run:\n{reveal_data.cli_retry_cmd}")
+            bittensor.logging.success(prefix="Weights hash committed and reveal operation scheduled", suffix=str(schedule_msg))
+            return True, f"Weights committed and will be revealed at {reveal_data.reveal_time}"
+        else:
+            bittensor.__console__.print(f":cross_mark: [red]Failed[/red]: Weights hash committed but failed to schedule reveal: {e}")
+            bittensor.__console__.print(f"On or after {reveal_data.reveal_time}, retry using:\n{reveal_data.cli_retry_cmd}")
+            bittensor.logging.error(prefix="Schedule reveal weights hash", suffix=f"<red>Failed: </red>{e}")
+            return False, f"Weights hash committed but failed to schedule reveal. {commit_msg}"
+    else:
+        bittensor.__console__.print(f":cross_mark: [red]Failed[/red]: error:{commit_msg}")
+        bittensor.logging.error(msg=commit_msg, prefix="Set weights with hash commit", suffix=f"<red>Failed: {commit_msg}</red>")
+        return False, f"Failed to commit weights hash. {commit_msg}"
+
+
+def reveal(
+    wallet: "bittensor.wallet",
+    subtensor: "bittensor.subtensor",
+    netuid: int,
+    weight_uids: NDArray[np.int64],
+    weight_vals: NDArray[np.float32],
+    salt: list[int],
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    interval: int,
+    reveal_time: str
+) -> Tuple[bool, str]:
+
+    if datetime.datetime.now(datetime.timezone.utc) < datetime.datetime.fromisoformat(reveal_time):
+        bittensor.__console__.print(":white_heavy_check_mark: [green]Weights hash revealed on chain[/green]")
+        bittensor.__console__.print(f":cross_mark: [red]Too early to reveal, retry on or after {reveal_time}[/red]")
+        return False, f"Too early to reveal, retry on or after {reveal_time}"
+
+    try:
+        # Attempt to reveal the weights using the salt.
+        success, msg = subtensor.reveal_weights(
+            wallet=wallet,
+            netuid=netuid,
+            uids=weight_uids,
+            weights=weight_vals,
+            salt=salt,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+        )
+    except Exception as e:
+            success, msg = False, str(e)
+
+    if success:
+        reveal_data = RevealData.create(wallet, subtensor, netuid, weight_uids, weight_vals, salt, wait_for_inclusion, wait_for_finalization, interval)
+        if reveal_data == commit_reveal_utils.read_last_reveal_data():
+            commit_reveal_utils.remove_last_reveal_data()
+
+        if not wait_for_finalization and not wait_for_inclusion:
+            return True, "Not waiting for finalization or inclusion."
+
+        bittensor.__console__.print(":white_heavy_check_mark: [green]Weights hash revealed on chain[/green]")
+        bittensor.logging.success(prefix="Weights hash revealed", suffix=str(msg))
+        
+        return True, "Successfully revealed previously commited weights hash."
+    else:
+        bittensor.logging.error(
+            msg=msg,
+            prefix="Failed to reveal previously commited weights hash",
+            suffix="<red>Failed: </red>",
+        )
+        return False, "Failed to reveal weights."
+
+
+def _set_weights_without_commit_reveal(
+    subtensor: "bittensor.subtensor",
+    wallet: "bittensor.wallet",
+    netuid: int,
+    weight_uids: NDArray[np.int64],
+    weight_vals: NDArray[np.float32],
+    version_key: int,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool
+) -> Tuple[bool, str]:
+    with bittensor.__console__.status(":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)):
+        try:
+            success, error_message = subtensor._do_set_weights(
+                wallet=wallet,
+                netuid=netuid,
+                uids=weight_uids,
+                vals=weight_vals,
+                version_key=version_key,
+                wait_for_finalization=wait_for_finalization,
+                wait_for_inclusion=wait_for_inclusion,
             )
 
-        else:
-            # Return an error if the commit operation failed.
-            return False, "Failed to commit weights."
-    else:
-        with bittensor.__console__.status(
-            ":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)
-        ):
-            try:
-                success, error_message = subtensor._do_set_weights(
-                    wallet=wallet,
-                    netuid=netuid,
-                    uids=weight_uids,
-                    vals=weight_vals,
-                    version_key=version_key,
-                    wait_for_finalization=wait_for_finalization,
-                    wait_for_inclusion=wait_for_inclusion,
-                )
+            if not wait_for_finalization and not wait_for_inclusion:
+                return True, "Not waiting for finalization or inclusion."
 
-                if not wait_for_finalization and not wait_for_inclusion:
-                    return True, "Not waiting for finalization or inclusion."
+            if success:
+                bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                bittensor.logging.success(prefix="Set weights", suffix="<green>Finalized: </green>" + str(success))
+                return True, "Successfully set weights and finalized."
+            else:
+                bittensor.logging.error(msg=error_message, prefix="Set weights", suffix="<red>Failed: </red>")
+                return False, error_message
 
-                if success is True:
-                    bittensor.__console__.print(
-                        ":white_heavy_check_mark: [green]Finalized[/green]"
-                    )
-                    bittensor.logging.success(
-                        prefix="Set weights",
-                        suffix="<green>Finalized: </green>" + str(success),
-                    )
-                    return True, "Successfully set weights and Finalized."
-                else:
-                    bittensor.logging.error(
-                        msg=error_message,
-                        prefix="Set weights",
-                        suffix="<red>Failed: </red>",
-                    )
-                    return False, error_message
-
-            except Exception as e:
-                bittensor.__console__.print(
-                    ":cross_mark: [red]Failed[/red]: error:{}".format(e)
-                )
-                bittensor.logging.warning(
-                    prefix="Set weights", suffix="<red>Failed: </red>" + str(e)
-                )
-                return False, str(e)
+        except Exception as e:
+            bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+            bittensor.logging.warning(prefix="Set weights", suffix="<red>Failed: </red>" + str(e))
+            return False, str(e)

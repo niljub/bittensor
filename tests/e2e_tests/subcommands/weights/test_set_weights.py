@@ -14,6 +14,7 @@ def test_set_weights_with_commit_reveal(local_chain):
     """
     # Setup wallet and command execution utility
     keypair, exec_command, wallet_path = setup_wallet("//Alice")
+    alice_wallet = bittensor.wallet(path=wallet_path)
 
     # Register a subnet to test with
     exec_command(RegisterSubnetworkCommand, ["s", "create"])
@@ -29,7 +30,7 @@ def test_set_weights_with_commit_reveal(local_chain):
     # Enable commit reveal mechanism
     subtensor = bittensor.subtensor(network="ws://localhost:9945")
     subtensor.set_hyperparameter(
-        wallet=keypair,
+        wallet=alice_wallet,
         netuid=netuid,
         parameter="commit_reveal_weights_enabled",
         value=True,
@@ -43,7 +44,7 @@ def test_set_weights_with_commit_reveal(local_chain):
         SetWeightCommand,
         [
             "wt",
-            "set",
+            "set_weights",
             "--netuid",
             str(netuid),
             "--uids",
@@ -70,7 +71,7 @@ def test_set_weights_with_commit_reveal(local_chain):
     
     # Disable commit reveal mechanism
     subtensor.set_hyperparameter(
-        wallet=keypair,
+        wallet=alice_wallet,
         netuid=netuid,
         parameter="commit_reveal_weights_enabled",
         value=False,
@@ -84,7 +85,7 @@ def test_set_weights_with_commit_reveal(local_chain):
         SetWeightCommand,
         [
             "wt",
-            "set",
+            "set_weights",
             "--netuid",
             str(netuid),
             "--uids",

@@ -57,10 +57,6 @@ from .chain_data import (
     custom_rpc_type_registry,
 )
 from .errors import IdentityError, NominationError, StakeError, TakeError
-from .extrinsics.commit_weights import (
-    commit_weights_extrinsic,
-    reveal_weights_extrinsic,
-)
 from .extrinsics.delegation import (
     delegate_extrinsic,
     nominate_extrinsic,
@@ -106,6 +102,8 @@ from .utils.balance import Balance
 from .utils.registration import POWSolution
 from .utils.registration import legacy_torch_api_compat
 from .utils.subtensor import get_subtensor_errors
+import warnings
+from deprecated import deprecated
 
 KEY_NONCE: Dict[str, int] = {}
 
@@ -313,6 +311,7 @@ class Subtensor:
         return bittensor.config(parser, args=[])
 
     @classmethod
+    # TODO: this looks to be unused (except in test) hence, can be removed?
     def help(cls):
         """Print help to stdout."""
         parser = argparse.ArgumentParser()
@@ -773,7 +772,7 @@ class Subtensor:
     ###############
     # Set Weights #
     ###############
-    # TODO: still needed? Can't find any usage of this method.
+    # This is used as an SDK call in the subnet repos
     def set_weights(
         self,
         wallet: "bittensor.wallet",
@@ -917,8 +916,6 @@ class Subtensor:
         version_key: int = bittensor.__version_as_int__,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = False,
-        prompt: bool = False,
-        max_retries: int = 5,
     ) -> Tuple[bool, str]:
         """
         Commits a hash of the neuron's weights to the Bittensor blockchain using the provided wallet.
@@ -943,7 +940,6 @@ class Subtensor:
         This function allows neurons to create a tamper-proof record of their weight distribution at a specific point in time,
         enhancing transparency and accountability within the Bittensor network.
         """
-        retries = 0
         success = False
         message = "No attempt made. Perhaps it is too soon to commit weights!"
 
@@ -964,24 +960,16 @@ class Subtensor:
         )
 
         _logger.info("Commit Hash: {}".format(commit_hash))
-
-        while retries < max_retries:
-            try:
-                success, message = commit_weights_extrinsic(
-                    subtensor=self,
-                    wallet=wallet,
-                    netuid=netuid,
-                    commit_hash=commit_hash,
-                    wait_for_inclusion=wait_for_inclusion,
-                    wait_for_finalization=wait_for_finalization,
-                    prompt=prompt,
-                )
-                if success:
-                    break
-            except Exception as e:
+        try:
+            success, message = self._do_commit_weights(
+                wallet=wallet,
+                netuid=netuid,
+                commit_hash=commit_hash,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+        except Exception as e:
                 bittensor.logging.error(f"Error committing weights: {e}")
-            finally:
-                retries += 1
 
         return success, message
 
@@ -1055,8 +1043,6 @@ class Subtensor:
         version_key: int = bittensor.__version_as_int__,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = False,
-        prompt: bool = False,
-        max_retries: int = 5,
     ) -> Tuple[bool, str]:
         """
         Reveals the weights for a specific subnet on the Bittensor blockchain using the provided wallet.
@@ -1082,30 +1068,23 @@ class Subtensor:
         and accountability within the Bittensor network.
         """
 
-        retries = 0
         success = False
         message = "No attempt made. Perhaps it is too soon to reveal weights!"
 
-        while retries < max_retries:
-            try:
-                success, message = reveal_weights_extrinsic(
-                    subtensor=self,
-                    wallet=wallet,
-                    netuid=netuid,
-                    uids=list(uids),
-                    weights=list(weights),
-                    salt=list(salt),
-                    version_key=version_key,
-                    wait_for_inclusion=wait_for_inclusion,
-                    wait_for_finalization=wait_for_finalization,
-                    prompt=prompt,
-                )
-                if success:
-                    break
-            except Exception as e:
-                bittensor.logging.error(f"Error revealing weights: {e}")
-            finally:
-                retries += 1
+        try:
+            success, message = self._do_reveal_weights(
+                subtensor=self,
+                wallet=wallet,
+                netuid=netuid,
+                uids=list(uids),
+                weights=list(weights),
+                salt=list(salt),
+                version_key=version_key,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+            )
+        except Exception as e:
+            bittensor.logging.error(f"Error revealing weights: {e}")
 
         return success, message
 

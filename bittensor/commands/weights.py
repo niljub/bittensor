@@ -16,18 +16,18 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-"""Module that encapsulates the CommitWeightCommand and the RevealWeightCommand. Used to commit and reveal weights
-for a specific subnet on the Bittensor Network."""
+"""Module that encapsulates the SetWeightCommand.
+NB: within the extrinsic layer a commit and reveal weights feature is included.
+"""
 
 import argparse
-import os
-import re
 
-import numpy as np
 from rich.prompt import Prompt, Confirm
 
 import bittensor
-import bittensor.utils.weight_utils as weight_utils
+from bittensor.extrinsics import set_weights
+from bittensor.utils import commit_reveal_utils
+from bittensor.utils.commit_reveal_utils import RevealData
 from . import defaults  # type: ignore
 
 
@@ -42,9 +42,14 @@ class SetWeightCommand:
         - `--netuid` (int): The netuid of the subnet for which weights are to be set.
         - `--uids` (str): Corresponding UIDs for the specified netuid, in comma-separated format.
         - `--weights` (str): Corresponding weights for the specified UIDs, in comma-separated format.
+        - ``--reveal-using-salt`` (str): This is useful when a commit-reveal process fails after a commit and before revealing the weights hash.
+                            Here you can specify the same salt that was used in a failed commit-reveal process to retry the reveal operation.
 
     Example usage:
-        $ btcli wt set --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4
+        $ btcli wt set_weights --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4
+        
+        For reveal-using-salt with all values:
+        $ btcli wt set_weights --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --reveal-using-salt 163,241,217,11,161,142,147,189
 
     Note:
         This command is used to set weights for specific neurons and requires the user to have the necessary permissions.
@@ -82,8 +87,9 @@ class SetWeightCommand:
         uids = list(map(int, cli.config.uids.split(',')))
         weights = list(map(float, cli.config.weights.split(',')))
 
-        # Call the set_weights function from subtensor
-        success, message = subtensor.set_weights(
+        # Call the set_weights_extrinsic function in the module set_weights from extrinsics package
+        success, message = set_weights.set_weights_extrinsic(
+            subtensor=subtensor,
             wallet=wallet,
             netuid=cli.config.netuid,
             uids=uids,
@@ -97,33 +103,17 @@ class SetWeightCommand:
             bittensor.logging.info("Successfully set weights.")
         else:
             bittensor.logging.error(f"Failed to set weights: {message}")
-    
+
     @staticmethod
     def add_args(parser: argparse.ArgumentParser):
-        parser = parser.add_parser(
-            "commit", help="""Commit weights for a specific subnet."""
-        )
+        parser = parser.add_parser("set_weights", help="Set weights for a specific subnet.")
         parser.add_argument("--netuid", dest="netuid", type=int, required=False)
         parser.add_argument("--uids", dest="uids", type=str, required=False)
         parser.add_argument("--weights", dest="weights", type=str, required=False)
-        parser.add_argument(
-            "--wait-for-inclusion",
-            dest="wait_for_inclusion",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
-            "--wait-for-finalization",
-            dest="wait_for_finalization",
-            action="store_true",
-            default=True,
-        )
-        parser.add_argument(
-            "--prompt",
-            dest="prompt",
-            action="store_true",
-            default=False,
-        )
+        parser.add_argument("--reveal-using-salt", dest="salt", type=str, required=False)
+        parser.add_argument("--wait-for-inclusion", dest="wait_for_inclusion", action="store_true", default=False)
+        parser.add_argument("--wait-for-finalization", dest="wait_for_finalization", action="store_true", default=True)
+        parser.add_argument("--prompt", dest="prompt", action="store_true", default=False)
 
         bittensor.wallet.add_args(parser)
         bittensor.subtensor.add_args(parser)
@@ -137,263 +127,41 @@ class SetWeightCommand:
             hotkey = Prompt.ask("Enter hotkey name", default=defaults.wallet.hotkey)
             config.wallet.hotkey = str(hotkey)
 
-
-
-
-class CommitWeightCommand:
-    """
-    Executes the ``commit`` command to commit weights for specific subnet on the Bittensor network.
-
-    Usage:
-        The command allows committing weights for a specific subnet. Users need to specify the netuid (network unique identifier), corresponding UIDs, and weights they wish to commit.
-
-    Optional arguments:
-        - ``--netuid`` (int): The netuid of the subnet for which weights are to be commited.
-        - ``--uids`` (str): Corresponding UIDs for the specified netuid, in comma-separated format.
-        - ``--weights`` (str): Corresponding weights for the specified UIDs, in comma-separated format.
-
-    Example usage:
-        $ btcli wt commit --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4
-
-    Note:
-        This command is used to commit weights for a specific subnet and requires the user to have the necessary permissions.
-    """
-
     @staticmethod
-    def run(cli: "bittensor.cli"):
-        r"""Commit weights for a specific subnet."""
-        try:
-            subtensor: "bittensor.subtensor" = bittensor.subtensor(
-                config=cli.config, log_verbose=False
+    def _try_recovery_path(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
+        reveal_data = commit_reveal_utils.read_last_reveal_data()
+        if reveal_data:
+            bittensor.__console__.print(
+                f"[red]A previously issued set_weights command partially failed on: {reveal_data}[/red]\n"
+                f"[red]This partial failure means your weights were committed as a hash but were not revealed (unhashed)[/red]\n"
+                "[red]The following values for set_weights were recovered:[/red]\n"
+                f"[red]  netuid: {reveal_data.netuid}[/red]\n"
+                f"[red]  uids: {reveal_data.weight_uids}[/red]\n"
+                f"[red]  weights: {reveal_data.weight_vals}[/red]\n"
+                f"[red]  salt: {reveal_data.salt}[/red]\n"
+                f"[red]  wait_for_inclusion: {reveal_data.wait_for_inclusion}[/red]\n"
+                f"[red]  wait_for_finalization: {reveal_data.wait_for_finalization}[/red]"
             )
-            CommitWeightCommand._run(cli, subtensor)
-        finally:
-            if "subtensor" in locals():
-                subtensor.close()
-                bittensor.logging.debug("closing subtensor connection")
 
-    @staticmethod
-    def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
-        r"""Commit weights for a specific subnet"""
-        wallet = bittensor.wallet(config=cli.config)
-
-        # Get values if not set
-        if not cli.config.is_set("netuid"):
-            cli.config.netuid = int(Prompt.ask(f"Enter netuid"))
-
-        if not cli.config.is_set("uids"):
-            cli.config.uids = Prompt.ask(f"Enter UIDs (comma-separated)")
-
-        if not cli.config.is_set("weights"):
-            cli.config.weights = Prompt.ask(f"Enter weights (comma-separated)")
-
-        # Parse from string
-        netuid = cli.config.netuid
-        uids = np.array(
-            [int(x) for x in re.split(r"[ ,]+", cli.config.uids)], dtype=np.int64
-        )
-        weights = np.array(
-            [float(x) for x in re.split(r"[ ,]+", cli.config.weights)], dtype=np.float32
-        )
-        weight_uids, weight_vals = weight_utils.convert_weights_and_uids_for_emit(
-            uids=uids, weights=weights
-        )
-
-        if not cli.config.is_set("salt"):
-            # Generate random salt
-            salt_length = 8
-            salt = list(os.urandom(salt_length))
-
-            if not Confirm.ask(
-                f"Have you recorded the [red]salt[/red]: [bold white]'{salt}'[/bold white]? It will be "
-                f"required to reveal weights."
-            ):
-                return False, "User cancelled the operation."
+            if Confirm.ask("Proceed with partial failure recovery (retry of reveal weights) ?"):
+                # TODO:
+                bittensor.__console__.print('RETRYING... dummy placeholder')
+                # set_weights.reveal_weights()
+                # cached_values = _CachedValues(
+                #     is_cached=True,
+                #     netuid=failure_data['netuid'],
+                #     uids=failure_data['weight_uids'],
+                #     weights=failure_data['weight_vals'],
+                #     salt=failure_data['salt'],
+                #     wait_for_inclusion=failure_data['wait_for_inclusion'],
+                #     wait_for_finalization=failure_data['wait_for_finalization']
+                # )
+            else:
+                if Confirm.ask("Do you want to clear these values from the cache (enter N if you want to retry later)?"):
+                    if commit_reveal_utils._clear_last_reveal_data():
+                        bittensor.__console__.print("Values cleared from cache.")
+                    else:
+                        bittensor.__console__.print("Values could not be cleared from due to an unexpected error.")
         else:
-            salt = np.array(
-                [int(x) for x in re.split(r"[ ,]+", cli.config.salt)],
-                dtype=np.int64,
-            ).tolist()
+            bittensor.logging.debug("The cache file for set_weights commit-reveal failure data could not be read to determine if a recovery is needed.")
 
-        # Run the commit weights operation
-        success, message = subtensor.commit_weights(
-            wallet=wallet,
-            netuid=netuid,
-            uids=weight_uids,
-            weights=weight_vals,
-            salt=salt,
-            wait_for_inclusion=cli.config.wait_for_inclusion,
-            wait_for_finalization=cli.config.wait_for_finalization,
-            prompt=cli.config.prompt,
-        )
-
-        # Result
-        if success:
-            bittensor.__console__.print(f"Weights committed successfully")
-        else:
-            bittensor.__console__.print(f"Failed to commit weights: {message}")
-
-    @staticmethod
-    def add_args(parser: argparse.ArgumentParser):
-        parser = parser.add_parser(
-            "commit", help="""Commit weights for a specific subnet."""
-        )
-        parser.add_argument("--netuid", dest="netuid", type=int, required=False)
-        parser.add_argument("--uids", dest="uids", type=str, required=False)
-        parser.add_argument("--weights", dest="weights", type=str, required=False)
-        parser.add_argument("--salt", dest="salt", type=str, required=False)
-        parser.add_argument(
-            "--wait-for-inclusion",
-            dest="wait_for_inclusion",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
-            "--wait-for-finalization",
-            dest="wait_for_finalization",
-            action="store_true",
-            default=True,
-        )
-        parser.add_argument(
-            "--prompt",
-            dest="prompt",
-            action="store_true",
-            default=False,
-        )
-
-        bittensor.wallet.add_args(parser)
-        bittensor.subtensor.add_args(parser)
-
-    @staticmethod
-    def check_config(config: "bittensor.config"):
-        if not config.no_prompt and not config.is_set("wallet.name"):
-            wallet_name = Prompt.ask("Enter wallet name", default=defaults.wallet.name)
-            config.wallet.name = str(wallet_name)
-        if not config.no_prompt and not config.is_set("wallet.hotkey"):
-            hotkey = Prompt.ask("Enter hotkey name", default=defaults.wallet.hotkey)
-            config.wallet.hotkey = str(hotkey)
-
-
-class RevealWeightCommand:
-    """
-    Executes the ``reveal`` command to reveal weights for a specific subnet on the Bittensor network.
-    Usage:
-        The command allows revealing weights for a specific subnet. Users need to specify the netuid (network unique identifier), corresponding UIDs, and weights they wish to reveal.
-    Optional arguments:
-        - ``--netuid`` (int): The netuid of the subnet for which weights are to be revealed.
-        - ``--uids`` (str): Corresponding UIDs for the specified netuid, in comma-separated format.
-        - ``--weights`` (str): Corresponding weights for the specified UIDs, in comma-separated format.
-        - ``--salt`` (str): Corresponding salt for the hash function, integers in comma-separated format.
-    Example usage::
-        $ btcli wt reveal --netuid 1 --uids 1,2,3,4 --weights 0.1,0.2,0.3,0.4 --salt 163,241,217,11,161,142,147,189
-    Note:
-        This command is used to reveal weights for a specific subnet and requires the user to have the necessary permissions.
-    """
-
-    @staticmethod
-    def run(cli: "bittensor.cli"):
-        r"""Reveal weights for a specific subnet."""
-        try:
-            subtensor: "bittensor.subtensor" = bittensor.subtensor(
-                config=cli.config, log_verbose=False
-            )
-            RevealWeightCommand._run(cli, subtensor)
-        finally:
-            if "subtensor" in locals():
-                subtensor.close()
-                bittensor.logging.debug("closing subtensor connection")
-
-    @staticmethod
-    def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
-        r"""Reveal weights for a specific subnet."""
-        wallet = bittensor.wallet(config=cli.config)
-
-        # Get values if not set.
-        if not cli.config.is_set("netuid"):
-            cli.config.netuid = int(Prompt.ask(f"Enter netuid"))
-
-        if not cli.config.is_set("uids"):
-            cli.config.uids = Prompt.ask(f"Enter UIDs (comma-separated)")
-
-        if not cli.config.is_set("weights"):
-            cli.config.weights = Prompt.ask(f"Enter weights (comma-separated)")
-
-        if not cli.config.is_set("salt"):
-            cli.config.salt = Prompt.ask(f"Enter salt (comma-separated)")
-
-        # Parse from string
-        netuid = cli.config.netuid
-        version = bittensor.__version_as_int__
-        uids = np.array(
-            [int(x) for x in re.split(r"[ ,]+", cli.config.uids)],
-            dtype=np.int64,
-        )
-        weights = np.array(
-            [float(x) for x in re.split(r"[ ,]+", cli.config.weights)],
-            dtype=np.float32,
-        )
-        salt = np.array(
-            [int(x) for x in re.split(r"[ ,]+", cli.config.salt)],
-            dtype=np.int64,
-        )
-        weight_uids, weight_vals = weight_utils.convert_weights_and_uids_for_emit(
-            uids=uids, weights=weights
-        )
-
-        # Run the reveal weights operation.
-        success, message = subtensor.reveal_weights(
-            wallet=wallet,
-            netuid=netuid,
-            uids=weight_uids,
-            weights=weight_vals,
-            salt=salt,
-            version_key=version,
-            wait_for_inclusion=cli.config.wait_for_inclusion,
-            wait_for_finalization=cli.config.wait_for_finalization,
-            prompt=cli.config.prompt,
-        )
-
-        if success:
-            bittensor.__console__.print(f"Weights revealed successfully")
-        else:
-            bittensor.__console__.print(f"Failed to reveal weights: {message}")
-
-    @staticmethod
-    def add_args(parser: argparse.ArgumentParser):
-        parser = parser.add_parser(
-            "reveal", help="""Reveal weights for a specific subnet."""
-        )
-        parser.add_argument("--netuid", dest="netuid", type=int, required=False)
-        parser.add_argument("--uids", dest="uids", type=str, required=False)
-        parser.add_argument("--weights", dest="weights", type=str, required=False)
-        parser.add_argument("--salt", dest="salt", type=str, required=False)
-        parser.add_argument(
-            "--wait-for-inclusion",
-            dest="wait_for_inclusion",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
-            "--wait-for-finalization",
-            dest="wait_for_finalization",
-            action="store_true",
-            default=True,
-        )
-        parser.add_argument(
-            "--prompt",
-            dest="prompt",
-            action="store_true",
-            default=False,
-        )
-
-        bittensor.wallet.add_args(parser)
-        bittensor.subtensor.add_args(parser)
-
-    @staticmethod
-    def check_config(config: "bittensor.config"):
-        if not config.is_set("wallet.name") and not config.no_prompt:
-            wallet_name = Prompt.ask("Enter wallet name", default=defaults.wallet.name)
-            config.wallet.name = str(wallet_name)
-        if not config.is_set("wallet.hotkey") and not config.no_prompt:
-            hotkey = Prompt.ask("Enter hotkey name", default=defaults.wallet.hotkey)
-            config.wallet.hotkey = str(hotkey)
