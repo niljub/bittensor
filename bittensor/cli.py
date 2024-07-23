@@ -68,6 +68,7 @@ from .commands import (
     WalletBalanceCommand,
     WalletCreateCommand,
     SetWeightCommand,
+    CheckColdKeySwapCommand,
 )
 
 # Create a console instance for CLI display.
