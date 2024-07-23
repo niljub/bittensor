@@ -218,14 +218,7 @@ def reveal(
     salt: list[int],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
-    interval: int,
-    reveal_time: str
 ) -> Tuple[bool, str]:
-
-    if datetime.datetime.now(datetime.timezone.utc) < datetime.datetime.fromisoformat(reveal_time):
-        bittensor.__console__.print(":white_heavy_check_mark: [green]Weights hash revealed on chain[/green]")
-        bittensor.__console__.print(f":cross_mark: [red]Too early to reveal, retry on or after {reveal_time}[/red]")
-        return False, f"Too early to reveal, retry on or after {reveal_time}"
 
     try:
         # Attempt to reveal the weights using the salt.
