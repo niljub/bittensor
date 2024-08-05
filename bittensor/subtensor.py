@@ -3234,7 +3234,7 @@ class Subtensor:
             >>> subtensor.commit_reveal_active(1)
             True
         """
-        call = self._get_hyperparameter(param_name="commit_reveal_weights_enabled", netuid=netuid, block=block)
+        call = self._get_hyperparameter(param_name="get_commit_reveal_weights_enabled", netuid=netuid, block=block)
         return None if call is None else bool(call)
 
 
@@ -3254,7 +3254,7 @@ class Subtensor:
             Optional[int]: The interval of the commit-reveal mechanism if it is enabled and set, None if the
             information could not be retrieved or if the subnet does not exist.
         """
-        interval = self._get_hyperparameter(param_name="commit_reveal_weights_interval", netuid=netuid, block=block)
+        interval = self._get_hyperparameter(param_name="get_commit_reveal_weights_interval", netuid=netuid, block=block)
         return None if interval is None else int(interval)
 
 
