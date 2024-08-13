@@ -9,8 +9,7 @@ from bittensor.commands import (
     RegisterCommand,
     StakeCommand,
     RegisterSubnetworkCommand,
-    CommitWeightCommand,
-    RevealWeightCommand,
+    SetWeightCommand,
 )
 from tests.e2e_tests.utils import setup_wallet
 
@@ -101,7 +100,7 @@ def test_commit_and_reveal_weights(local_chain):
 
     # Configure the CLI arguments for the CommitWeightCommand
     exec_command(
-        CommitWeightCommand,
+        SetWeightCommand,
         [
             "wt",
             "commit",
@@ -150,9 +149,9 @@ def test_commit_and_reveal_weights(local_chain):
         if current_block % 10 == 0:
             print(f"Current Block: {current_block}  Revealing at: {reveal_block_start}")
 
-    # Configure the CLI arguments for the RevealWeightCommand
+    # Configure the CLI arguments for the SetWeightCommand
     exec_command(
-        RevealWeightCommand,
+        SetWeightCommand,
         [
             "wt",
             "reveal",

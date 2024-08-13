@@ -18,16 +18,14 @@
 
 import datetime
 import bittensor
-
+import time
 import os
 import logging
 import numpy as np
 from numpy.typing import NDArray
 from rich.prompt import Confirm
 from typing import Union, Tuple
-from bittensor.utils import exec_utils, weight_utils
-from bittensor.utils import commit_reveal_utils
-from bittensor.utils.commit_reveal_utils import RevealData
+from bittensor.utils import weight_utils
 from bittensor.btlogging.defines import BITTENSOR_LOGGER_NAME
 from bittensor.utils.registration import torch, use_torch
 
@@ -39,8 +37,8 @@ def set_weights_extrinsic(
     subtensor: "bittensor.subtensor",
     wallet: "bittensor.wallet",
     netuid: int,
-    uids: Union[NDArray[np.int64], "torch.LongTensor", list],
-    weights: Union[NDArray[np.float32], "torch.FloatTensor", list],
+    uids: list[int],
+    weights: list[float],
     salt: list[int] = None,
     version_key: int = 0,
     wait_for_inclusion: bool = False,
@@ -84,7 +82,7 @@ def set_weights_extrinsic(
     """
 
     # Reformat and normalize.
-    weight_uids, weight_vals = _prepare_values(uids, weights)
+    weight_uids, weight_vals = prepare_values(uids, weights)
 
     # Ask before moving on.
     formatted_weight_vals = [float(v / 65535) for v in weight_vals]
@@ -99,10 +97,10 @@ def set_weights_extrinsic(
             netuid,
             weight_uids,
             weight_vals,
-            formatted_weight_vals,
+            weights,
             salt,
             wait_for_inclusion,
-            wait_for_finalization,
+            wait_for_finalization
         )
     else:
         return _set_weights_without_commit_reveal(
@@ -117,7 +115,7 @@ def set_weights_extrinsic(
         )
 
 
-def _prepare_values(
+def prepare_values(
     uids: Union[NDArray[np.int64], "torch.LongTensor", list],
     weights: Union[NDArray[np.float32], "torch.FloatTensor", list]
 ) -> Tuple[NDArray[np.int64], NDArray[np.float32]]:
@@ -132,9 +130,7 @@ def _prepare_values(
             uids = np.array(uids, dtype=np.int64)
         if isinstance(weights, list):
             weights = np.array(weights, dtype=np.float32)
-    return weight_utils.convert_weights_and_uids_for_emit(
-        uids, weights
-    )
+    return weight_utils.convert_weights_and_uids_for_emit(uids, weights)
 
 def _commit_reveal(
     subtensor: "bittensor.subtensor",
@@ -142,6 +138,7 @@ def _commit_reveal(
     netuid: int,
     weight_uids: NDArray[np.int64],
     weight_vals: NDArray[np.float32],
+    float_weights: list[float],
     salt: list[int],
     wait_for_inclusion: bool,
     wait_for_finalization: bool
@@ -168,41 +165,33 @@ def _commit_reveal(
         commit_success, commit_msg = False, str(e)
 
     if commit_success:
-        try:
-            # In case of process execution failure, first create the reveal_data and then save it to a file for recovery
-            reveal_data = RevealData.create(wallet, subtensor, netuid, weight_uids, weight_vals, salt, wait_for_inclusion, wait_for_finalization, interval)
-            commit_reveal_utils.write_reveal_data(reveal_data)
+        current_time = datetime.now().astimezone().replace(microsecond=0)
+        reveal_time = (current_time + datetime.timedelta(seconds=interval)).isoformat()
+        cli_retry_cmd = f"--netuid {netuid} --uids {weight_uids} --weights {float_weights} --reveal-using-salt {salt}"
+        # Print params to screen and notify user this is a blocking operation
+        bittensor.__console__.print(":white_heavy_check_mark: [green]Weights hash committed to chain[/green]")
+        bittensor.__console__.print(f":alarm_clock: [dark_orange3]Weights hash will be revealed at {reveal_time}[/dark_orange3]")
+        bittensor.__console__.print(f":alarm_clock: [red]WARNING: Turning off your computer will prevent this process from executing!!![/red]")
+        bittensor.__console__.print(f"To manually retry after {reveal_time} run:\n{cli_retry_cmd}")
+        
+        bittensor.logging.info(msg=f"Weights hash committed and will be revealed at {reveal_time}")
+        
+        bittensor.__console__.print("Note: BTCLI will wait until the reveal time. To place BTCLI into background:")
+        bittensor.__console__.print("[red]CTRL+Z[/red] followed by the command [red]bg[/red] and [red]ENTER[/red]")
+        bittensor.__console__.print("To bring BTLCI into the foreground use the command [red]fg[/red] and [red]ENTER[/red]")
 
-            # Attempt executing _reveal function after a delay of 'interval'
-            schedule_success, schedule_msg = exec_utils.exec_after(
-                interval,
-                reveal,
-                wallet,
-                subtensor,
-                netuid,
-                weight_uids,
-                weight_vals,
-                salt,
-                wait_for_inclusion,
-                wait_for_finalization,
-                reveal_data.interval,
-                reveal_data.reveal_time
-            )
-        except Exception as e:
-            schedule_success, schedule_msg = False, str(e)
-
-        if schedule_success:
-            bittensor.__console__.print(":white_heavy_check_mark: [green]Weights hash committed to chain[/green]")
-            bittensor.__console__.print(f":alarm_clock: [dark_orange3]Weights hash reveal scheduled for {reveal_data.reveal_time}[/dark_orange3]")
-            bittensor.__console__.print(f":alarm_clock: [red]WARNING: Turning off your computer will prevent this process from executing!!![/red]")
-            bittensor.__console__.print(f"To retry in case of failure on or after {reveal_data.reveal_time} run:\n{reveal_data.cli_retry_cmd}")
-            bittensor.logging.success(prefix="Weights hash committed and reveal operation scheduled", suffix=str(schedule_msg))
-            return True, f"Weights committed and will be revealed at {reveal_data.reveal_time}"
-        else:
-            bittensor.__console__.print(f":cross_mark: [red]Failed[/red]: Weights hash committed but failed to schedule reveal: {e}")
-            bittensor.__console__.print(f"On or after {reveal_data.reveal_time}, retry using:\n{reveal_data.cli_retry_cmd}")
-            bittensor.logging.error(prefix="Schedule reveal weights hash", suffix=f"<red>Failed: </red>{e}")
-            return False, f"Weights hash committed but failed to schedule reveal. {commit_msg}"
+        # Attempt executing reveal function after a delay of 'interval'
+        time.sleep(interval)
+        return reveal(
+            wallet,
+            subtensor,
+            netuid,
+            weight_uids,
+            weight_vals,
+            salt,
+            wait_for_inclusion,
+            wait_for_finalization,
+        )
     else:
         bittensor.__console__.print(f":cross_mark: [red]Failed[/red]: error:{commit_msg}")
         bittensor.logging.error(msg=commit_msg, prefix="Set weights with hash commit", suffix=f"<red>Failed: {commit_msg}</red>")
@@ -235,10 +224,6 @@ def reveal(
             success, msg = False, str(e)
 
     if success:
-        reveal_data = RevealData.create(wallet, subtensor, netuid, weight_uids, weight_vals, salt, wait_for_inclusion, wait_for_finalization, interval)
-        if reveal_data == commit_reveal_utils.read_last_reveal_data():
-            commit_reveal_utils.remove_last_reveal_data()
-
         if not wait_for_finalization and not wait_for_inclusion:
             return True, "Not waiting for finalization or inclusion."
 
@@ -249,7 +234,7 @@ def reveal(
     else:
         bittensor.logging.error(
             msg=msg,
-            prefix="Failed to reveal previously commited weights hash",
+            prefix=f"Failed to reveal previously commited weights hash for salt: {salt}",
             suffix="<red>Failed: </red>",
         )
         return False, "Failed to reveal weights."

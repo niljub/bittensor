@@ -21,13 +21,11 @@ NB: within the extrinsic layer a commit and reveal weights feature is included.
 """
 
 import argparse
-import datetime
 
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 
 import bittensor
 from bittensor.extrinsics import set_weights
-from bittensor.utils import commit_reveal_utils
 from . import defaults  # type: ignore
 
 
@@ -72,19 +70,6 @@ class SetWeightCommand:
     @staticmethod
     def _run(cli: "bittensor.cli", subtensor: "bittensor.subtensor"):
         r"""Set weights for specific neurons"""
-
-        if cli.config.reveal_using_salt:
-            SetWeightCommand._do_reveal_from_cli(cli, subtensor)
-        else:
-            reveal_data = commit_reveal_utils.read_last_reveal_data()
-            if reveal_data and datetime.datetime.now(datetime.timezone.utc) < datetime.datetime.fromisoformat(reveal_data.reveal_time):
-                SetWeightCommand._do_reveal_from_cache(cli, subtensor, reveal_data)
-            else:
-                SetWeightCommand._do_set_weights(cli, subtensor)
-
-
-    @staticmethod
-    def _do_set_weights(cli, subtensor):
         wallet = bittensor.wallet(config=cli.config)
 
         # Get values if not set
@@ -101,76 +86,32 @@ class SetWeightCommand:
         uids = list(map(int, cli.config.uids.split(',')))
         weights = list(map(float, cli.config.weights.split(',')))
 
-        # Call the set_weights_extrinsic function in the module set_weights from extrinsics package
-        success, message = set_weights.set_weights_extrinsic(
+        if cli.config.reveal_using_salt:
+            weight_uids, weight_vals = set_weights.prepare_values(uids, weights)
+            # Call the reveal function in the module set_weights from extrinsics package
+            success, message = set_weights.reveal(
                     subtensor=subtensor,
                     wallet=wallet,
                     netuid=cli.config.netuid,
-                    uids=uids,
-                    weights=weights,
+                    weight_uids=weight_uids,
+                    weight_vals=weight_vals,
+                    salt=cli.config.reveal_using_salt,
                     wait_for_inclusion=True,
-                    wait_for_finalization=False,
-                    prompt=True
+                    wait_for_finalization=False
                 )
-        
-        return success,message
-
-
-    @staticmethod
-    def _do_reveal_from_cache(cli, subtensor, reveal_data):
-        bittensor.__console__.print(
-                    f"[red]A previously issued set_weights command partially failed.[/red]\n"
-                    f"[red]This partial failure means your weights were committed as a hash but were not revealed (unhashed)[/red]\n"
-                    "[red]The following values for set_weights were cached:[/red]\n"
-                    f"[red]  wallet_name: {reveal_data.wallet_name}[/red]\n"
-                    f"[red]  wallet_hotkey: {reveal_data.wallet_hotkey}[/red]\n"
-                    f"[red]  wallet_path: {reveal_data.wallet_path}[/red]\n"
-                    f"[red]  netuid: {reveal_data.netuid}[/red]\n"
-                    f"[red]  uids: {reveal_data.weight_uids}[/red]\n"
-                    f"[red]  weights: {reveal_data.weight_vals}[/red]\n"
-                    f"[red]  salt: {reveal_data.salt}[/red]\n"
-                    f"[red]  wait_for_inclusion: {reveal_data.wait_for_inclusion}[/red]\n"
-                    f"[red]  wait_for_finalization: {reveal_data.wait_for_finalization}[/red]"
-                )
-
-        if Confirm.ask("Retry reveal of weights hash using these values?"):
-            cli.config.netuid = reveal_data.netuid
-            cli.config.uids = reveal_data.weight_uids
-            cli.config.weights = reveal_data.weight_vals
-            cli.config.reveal_using_salt = reveal_data.salt
-            cli.config.wallet.name = reveal_data.wallet_name
-            cli.config.wallet.hotkey = reveal_data.wallet_hotkey
-            cli.config.wallet.path = reveal_data.wallet_path
-            cli.config.wait_for_inclusion = reveal_data.wait_for_inclusion
-            cli.config.wait_for_finalization = reveal_data.wait_for_finalization
-            SetWeightCommand._do_reveal_from_cli(cli, subtensor)
-
         else:
-            if Confirm.ask("Do you want to clear these values from the cache (enter N if you want to retry later)?"):
-                if commit_reveal_utils._clear_last_reveal_data():
-                    bittensor.__console__.print("Values cleared from cache.")
-                else:
-                    bittensor.__console__.print("Values could not be cleared due to an unexpected error.")
-
-
-    @staticmethod
-    def _do_reveal_from_cli(cli, subtensor):
-        wallet = bittensor.wallet(config=cli.config)
-            # Convert comma-separated strings to appropriate lists
-        uids = list(map(int, cli.config.uids.split(',')))
-        weights = list(map(float, cli.config.weights.split(',')))
-
             # Call the set_weights_extrinsic function in the module set_weights from extrinsics package
-        success, message = set_weights.reveal(
-                subtensor=subtensor,
-                wallet=wallet,
-                netuid=cli.config.netuid,
-                weight_uids=uids,
-                weight_vals=weights,
-                salt=cli.config.reveal_using_salt,
-                wait_for_inclusion=True,
-                wait_for_finalization=False
-            )
+            success, message = set_weights.set_weights_extrinsic(
+                        subtensor=subtensor,
+                        wallet=wallet,
+                        netuid=cli.config.netuid,
+                        uids=uids,
+                        weights=weights,
+                        wait_for_inclusion=cli.config.wait_for_inclusion,
+                        wait_for_finalization=cli.config.wait_for_finalization,
+                        prompt=cli.config.prompt
+                    )
+
         if success:
             bittensor.logging.info("Successfully set weights.")
         else:

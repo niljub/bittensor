@@ -41,7 +41,7 @@ from substrateinterface.exceptions import SubstrateRequestException
 
 import bittensor
 from bittensor.btlogging import logging as _logger
-from bittensor.utils import torch, commit_reveal_utils, format_error_message
+from bittensor.utils import torch, weight_utils, format_error_message
 from .chain_data import (
     DelegateInfoLite,
     NeuronInfo,
@@ -950,7 +950,7 @@ class Subtensor:
         )
 
         # Generate the hash of the weights
-        commit_hash = commit_reveal_utils.generate_weight_hash(
+        commit_hash = weight_utils.generate_weight_hash(
             address=wallet.hotkey.ss58_address,
             netuid=netuid,
             uids=list(uids),
