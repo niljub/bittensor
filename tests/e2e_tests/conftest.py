@@ -1,4 +1,4 @@
-import logging
+from bittensor import logging
 import os
 import re
 import select
@@ -16,7 +16,6 @@ from tests.e2e_tests.utils import (
     uninstall_templates,
 )
 
-logging.basicConfig(level=logging.INFO)
 
 
 # Fixture for setting up and tearing down a localnet.sh chain between tests
@@ -59,7 +58,7 @@ def local_chain(request):
         while True:
             # Check if we've exceeded the timeout
             if time.time() - start_time > timeout:
-                print("Subtensor not started in time")
+                logging.error("Subtensor not started in time")
                 return False
 
             # Check if ready for output every 1 second
@@ -68,11 +67,11 @@ def local_chain(request):
             if ready:
                 line = process.stdout.readline()
                 if not line:  # EOF
-                    print("Process ended unexpectedly")
+                    logging.error("Process ended unexpectedly")
                     return False
-                print(line.strip())
+                logging.info(line.strip())
                 if pattern.search(line):
-                    print("Node started!")
+                    logging.info("Node started!")
                     return True
             else:
                 # No output within 1 second, continue the loop
