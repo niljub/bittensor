@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import select
 import shlex
 import signal
 import subprocess
@@ -13,7 +14,6 @@ from tests.e2e_tests.utils import (
     clone_or_update_templates,
     install_templates,
     uninstall_templates,
-    template_path,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -38,31 +38,49 @@ def local_chain(request):
     cmds = shlex.split(f"{script_path} {args}")
     # Start new node process
     process = subprocess.Popen(
-        cmds, stdout=subprocess.PIPE, text=True, preexec_fn=os.setsid
+        cmds,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        preexec_fn=os.setsid,
     )
 
-    # Pattern match indicates node is compiled and ready
-    pattern = re.compile(r"Imported #1")
-
-    # install neuron templates
+    # Install neuron templates
     logging.info("downloading and installing neuron templates from github")
     templates_dir = clone_or_update_templates()
     install_templates(templates_dir)
 
-    timestamp = int(time.time())
+    # Pattern match indicates node is compiled and ready
+    pattern = re.compile(r"Imported #1")
 
-    def wait_for_node_start(process, pattern):
-        for line in process.stdout:
-            print(line.strip())
-            # 10 min as timeout
-            if int(time.time()) - timestamp > 10 * 60:
+    # Time out of 15 minutes
+    def wait_for_node_start(process, pattern, timeout=900):
+        start_time = time.time()
+        while True:
+            # Check if we've exceeded the timeout
+            if time.time() - start_time > timeout:
                 print("Subtensor not started in time")
-                break
-            if pattern.search(line):
-                print("Node started!")
-                break
+                return False
 
-    wait_for_node_start(process, pattern)
+            # Check if ready for output every 1 second
+            ready, _, _ = select.select([process.stdout], [], [], 2.0)
+
+            if ready:
+                line = process.stdout.readline()
+                if not line:  # EOF
+                    print("Process ended unexpectedly")
+                    return False
+                print(line.strip())
+                if pattern.search(line):
+                    print("Node started!")
+                    return True
+            else:
+                # No output within 1 second, continue the loop
+                continue
+
+    if not wait_for_node_start(process, pattern):
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        pytest.fail("Node failed to start within the timeout period.")
 
     # Run the test, passing in substrate interface
     yield SubstrateInterface(url="ws://127.0.0.1:9945")
@@ -82,4 +100,4 @@ def local_chain(request):
 
     # uninstall templates
     logging.info("uninstalling neuron templates")
-    uninstall_templates(template_path)
+    uninstall_templates(templates_dir)
