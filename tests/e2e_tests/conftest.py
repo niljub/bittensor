@@ -1,4 +1,3 @@
-from bittensor import logging
 import os
 import re
 import select
@@ -10,12 +9,12 @@ import time
 import pytest
 from substrateinterface import SubstrateInterface
 
+from bittensor import logging
 from tests.e2e_tests.utils import (
     clone_or_update_templates,
     install_templates,
     uninstall_templates,
 )
-
 
 
 # Fixture for setting up and tearing down a localnet.sh chain between tests
